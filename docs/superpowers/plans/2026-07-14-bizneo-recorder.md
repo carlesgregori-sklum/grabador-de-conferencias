@@ -47,7 +47,7 @@ def test_config_rejects_empty_microphone(tmp_path):
 
 - [ ] **Step 2: Run tests and confirm missing-module failure**
 
-Run: `python -m unittest discover -s tests -v`
+Run: `python -m unittest discover -s tests -t . -v`
 Expected: FAIL because `bizneo_recorder.models` does not exist.
 
 - [ ] **Step 3: Implement immutable value objects and unique path generation**
@@ -78,7 +78,7 @@ class RecordingConfig:
 
 - [ ] **Step 4: Run tests and commit**
 
-Run: `python -m unittest discover -s tests -v`
+Run: `python -m unittest discover -s tests -t . -v`
 Expected: PASS.
 
 Commit: `git commit -am "feat: add recording configuration"` after adding new files.
@@ -120,7 +120,7 @@ Use `subprocess.run([ffmpeg, "-hide_banner", "-list_devices", "true", "-f", "dsh
 
 - [ ] **Step 4: Run tests and commit**
 
-Run: `python -m unittest discover -s tests -v`
+Run: `python -m unittest discover -s tests -t . -v`
 Expected: PASS.
 
 Commit: `git commit -am "feat: add FFmpeg capture integration"` after adding new files.
@@ -163,7 +163,7 @@ Start FFmpeg with redirected stdin/stderr and `CREATE_NO_WINDOW`; send `q` for g
 
 - [ ] **Step 4: Run tests and commit**
 
-Run: `python -m unittest discover -s tests -v`
+Run: `python -m unittest discover -s tests -t . -v`
 Expected: PASS.
 
 Commit: `git commit -am "feat: add safe recorder lifecycle"` after adding new files.
@@ -203,7 +203,7 @@ Create a single accessible window with microphone combobox, refresh button, outp
 
 - [ ] **Step 4: Implement `--self-test` and run all tests**
 
-Run: `python -m unittest discover -s tests -v`
+Run: `python -m unittest discover -s tests -t . -v`
 Expected: PASS.
 
 Commit: `git commit -am "feat: add recorder interface and diagnostics"` after adding new files.
@@ -238,7 +238,7 @@ Document copy-and-run operation, microphone permission troubleshooting, output l
 
 - [ ] **Step 4: Run clean automated verification**
 
-Run: `python -m unittest discover -s tests -v`
+Run: `python -m unittest discover -s tests -t . -v`
 Expected: all tests PASS.
 
 Run: `& 'outputs\Bizneo Recorder\Bizneo Recorder.exe' --self-test`
