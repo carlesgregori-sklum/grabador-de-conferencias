@@ -18,6 +18,37 @@ class Microphone:
 
 
 @dataclass(frozen=True, slots=True)
+class ResolutionPreset:
+    """A user-facing output size supported by the recorder UI."""
+
+    label: str
+    width: int
+    height: int
+
+
+RESOLUTION_PRESETS: tuple[ResolutionPreset, ...] = (
+    ResolutionPreset("HD 720p", 1280, 720),
+    ResolutionPreset("Full HD 1080p", 1920, 1080),
+)
+SUPPORTED_FPS: tuple[int, ...] = (30, 60)
+
+
+def get_resolution_preset(label: str) -> ResolutionPreset:
+    for preset in RESOLUTION_PRESETS:
+        if preset.label == label:
+            return preset
+    raise ValueError(f"unsupported resolution: {label!r}")
+
+
+def parse_fps(label: str) -> int:
+    labels = {f"{fps} FPS": fps for fps in SUPPORTED_FPS}
+    try:
+        return labels[label]
+    except KeyError as error:
+        raise ValueError(f"unsupported frame rate: {label!r}") from error
+
+
+@dataclass(frozen=True, slots=True)
 class RecordingConfig:
     """Validated values required to start one recording."""
 

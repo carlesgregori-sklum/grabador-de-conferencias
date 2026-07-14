@@ -5,7 +5,41 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-from bizneo_recorder.models import Microphone, RecordingConfig
+from bizneo_recorder.models import (
+    RESOLUTION_PRESETS,
+    SUPPORTED_FPS,
+    Microphone,
+    RecordingConfig,
+    get_resolution_preset,
+    parse_fps,
+)
+
+
+class RecordingQualityTests(unittest.TestCase):
+    def test_supported_resolution_presets_are_720p_and_1080p(self) -> None:
+        self.assertEqual(
+            [(item.label, item.width, item.height) for item in RESOLUTION_PRESETS],
+            [
+                ("HD 720p", 1280, 720),
+                ("Full HD 1080p", 1920, 1080),
+            ],
+        )
+
+    def test_supported_frame_rates_are_30_and_60(self) -> None:
+        self.assertEqual(SUPPORTED_FPS, (30, 60))
+
+    def test_resolution_lookup_rejects_unsupported_label(self) -> None:
+        self.assertEqual(get_resolution_preset("HD 720p").width, 1280)
+        with self.assertRaisesRegex(ValueError, "resolution"):
+            get_resolution_preset("4K")
+
+    def test_parse_fps_accepts_only_supported_labels(self) -> None:
+        self.assertEqual(parse_fps("30 FPS"), 30)
+        self.assertEqual(parse_fps("60 FPS"), 60)
+        for unsupported in ("25 FPS", "60", "abc FPS"):
+            with self.subTest(unsupported=unsupported):
+                with self.assertRaisesRegex(ValueError, "frame rate"):
+                    parse_fps(unsupported)
 
 
 class RecordingConfigTests(unittest.TestCase):
