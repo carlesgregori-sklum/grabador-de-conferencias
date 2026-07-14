@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from bizneo_recorder.app import format_elapsed
+from bizneo_recorder.app import build_recording_config, format_elapsed
 from bizneo_recorder.ffmpeg import DiagnosticResult
 from bizneo_recorder.main import resource_path, run_self_test
 from bizneo_recorder.models import Microphone
@@ -22,6 +22,26 @@ class FakeDiagnosticClient:
 
 
 class MainTests(unittest.TestCase):
+    def test_build_recording_config_supports_every_quality_combination(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            for resolution, expected_size in (
+                ("HD 720p", (1280, 720)),
+                ("Full HD 1080p", (1920, 1080)),
+            ):
+                for fps_label, expected_fps in (("30 FPS", 30), ("60 FPS", 60)):
+                    with self.subTest(resolution=resolution, fps=fps_label):
+                        config = build_recording_config(
+                            Microphone("Mic"),
+                            Path(directory),
+                            resolution,
+                            fps_label,
+                        )
+                        self.assertEqual(
+                            (config.width, config.height),
+                            expected_size,
+                        )
+                        self.assertEqual(config.fps, expected_fps)
+
     def test_resource_path_uses_executable_directory_when_frozen(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / "Bizneo Recorder.exe"

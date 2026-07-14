@@ -8,7 +8,14 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 
 from .ffmpeg import FFmpegClient, FFmpegError
-from .models import Microphone, RecordingConfig
+from .models import (
+    RESOLUTION_PRESETS,
+    SUPPORTED_FPS,
+    Microphone,
+    RecordingConfig,
+    get_resolution_preset,
+    parse_fps,
+)
 from .recorder import Recorder, RecorderError, RecorderState
 
 
@@ -28,6 +35,22 @@ def format_elapsed(seconds: float) -> str:
     total_seconds = max(0, int(seconds))
     minutes, seconds_part = divmod(total_seconds, 60)
     return f"{minutes:02d}:{seconds_part:02d}"
+
+
+def build_recording_config(
+    microphone: Microphone,
+    output_dir: Path,
+    resolution_label: str,
+    fps_label: str,
+) -> RecordingConfig:
+    preset = get_resolution_preset(resolution_label)
+    return RecordingConfig(
+        microphone,
+        output_dir,
+        width=preset.width,
+        height=preset.height,
+        fps=parse_fps(fps_label),
+    )
 
 
 class BizneoRecorderApp:
@@ -52,6 +75,8 @@ class BizneoRecorderApp:
         self.microphone_state_var = tk.StringVar(value="● Comprovant micròfon")
         self.elapsed_var = tk.StringVar(value="00:00")
         self.microphone_var = tk.StringVar()
+        self.resolution_var = tk.StringVar(value="Full HD 1080p")
+        self.fps_var = tk.StringVar(value="30 FPS")
 
         self._configure_window()
         self._build_interface()
@@ -61,9 +86,9 @@ class BizneoRecorderApp:
 
     def _configure_window(self) -> None:
         self.root.title("Bizneo Recorder")
-        self.root.geometry("620x500")
-        self.root.minsize(620, 500)
-        self.root.maxsize(620, 500)
+        self.root.geometry("620x625")
+        self.root.minsize(620, 625)
+        self.root.maxsize(620, 625)
         self.root.configure(bg=BACKGROUND)
 
         style = ttk.Style(self.root)
@@ -95,7 +120,7 @@ class BizneoRecorderApp:
         ).pack(anchor="w")
         tk.Label(
             header,
-            text="Grava la pantalla Full HD i la teua veu en un MP4.",
+            text="Grava la pantalla i la teua veu en un MP4.",
             bg=BACKGROUND,
             fg=MUTED,
             font=("Segoe UI", 10),
@@ -155,7 +180,64 @@ class BizneoRecorderApp:
             fg=MUTED,
             font=("Segoe UI", 9),
         )
-        self.microphone_state_label.pack(anchor="w", pady=(2, 16))
+        self.microphone_state_label.pack(anchor="w", pady=(2, 18))
+
+        tk.Label(
+            card,
+            text="Qualitat del vídeo",
+            bg=SURFACE,
+            fg=TEXT,
+            font=("Segoe UI Semibold", 10),
+        ).pack(anchor="w")
+
+        quality_row = tk.Frame(card, bg=SURFACE)
+        quality_row.pack(fill="x", pady=(7, 4))
+
+        resolution_column = tk.Frame(quality_row, bg=SURFACE)
+        resolution_column.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            resolution_column,
+            text="Resolució",
+            bg=SURFACE,
+            fg=MUTED,
+            font=("Segoe UI", 9),
+        ).pack(anchor="w", pady=(0, 4))
+        self.resolution_box = ttk.Combobox(
+            resolution_column,
+            textvariable=self.resolution_var,
+            values=[preset.label for preset in RESOLUTION_PRESETS],
+            state="readonly",
+            style="Recorder.TCombobox",
+            font=("Segoe UI", 10),
+        )
+        self.resolution_box.pack(fill="x")
+
+        fps_column = tk.Frame(quality_row, bg=SURFACE)
+        fps_column.pack(side="left", fill="x", expand=True, padx=(12, 0))
+        tk.Label(
+            fps_column,
+            text="Fluïdesa",
+            bg=SURFACE,
+            fg=MUTED,
+            font=("Segoe UI", 9),
+        ).pack(anchor="w", pady=(0, 4))
+        self.fps_box = ttk.Combobox(
+            fps_column,
+            textvariable=self.fps_var,
+            values=[f"{fps} FPS" for fps in SUPPORTED_FPS],
+            state="readonly",
+            style="Recorder.TCombobox",
+            font=("Segoe UI", 10),
+        )
+        self.fps_box.pack(fill="x")
+
+        tk.Label(
+            card,
+            text="60 FPS crea fitxers més grans i exigeix més a l'equip.",
+            bg=SURFACE,
+            fg=MUTED,
+            font=("Segoe UI", 9),
+        ).pack(anchor="w", pady=(2, 18))
 
         tk.Label(
             card,
@@ -283,6 +365,10 @@ class BizneoRecorderApp:
         self.microphone_state_var.set("● Micròfon preparat")
         self.microphone_state_label.configure(fg=SUCCESS)
 
+    def _set_quality_controls_state(self, state: str) -> None:
+        self.resolution_box.configure(state=state)
+        self.fps_box.configure(state=state)
+
     def toggle_recording(self) -> None:
         if self.recorder.state is RecorderState.IDLE:
             self._start_recording()
@@ -302,11 +388,27 @@ class BizneoRecorderApp:
             )
             return
 
-        config = RecordingConfig(microphone, self.output_dir)
+        try:
+            config = build_recording_config(
+                microphone,
+                self.output_dir,
+                self.resolution_var.get(),
+                self.fps_var.get(),
+            )
+        except ValueError as error:
+            messagebox.showerror(
+                "Qualitat no vàlida",
+                f"Revisa la resolució i els FPS seleccionats.\n\n{error}",
+                parent=self.root,
+            )
+            return
         self.record_button.configure(state="disabled", text="Iniciant…")
         self.microphone_box.configure(state="disabled")
+        self._set_quality_controls_state("disabled")
         self.refresh_button.configure(state="disabled")
-        self.status_var.set("Preparant la gravació Full HD…")
+        self.status_var.set(
+            f"Preparant la gravació {self.resolution_var.get()} · {self.fps_var.get()}…"
+        )
 
         def worker() -> None:
             try:
@@ -340,6 +442,7 @@ class BizneoRecorderApp:
             activebackground=PRIMARY_ACTIVE,
         )
         self.microphone_box.configure(state="readonly")
+        self._set_quality_controls_state("readonly")
         self.refresh_button.configure(state="normal")
         self.status_var.set(str(error))
         messagebox.showerror("No s'ha pogut gravar", str(error), parent=self.root)
@@ -381,6 +484,7 @@ class BizneoRecorderApp:
             activebackground=PRIMARY_ACTIVE,
         )
         self.microphone_box.configure(state="readonly")
+        self._set_quality_controls_state("readonly")
         self.refresh_button.configure(state="normal")
         self.open_folder_button.configure(state="normal")
         self.status_var.set(f"Vídeo guardat correctament: {video_path.name}")
@@ -395,6 +499,7 @@ class BizneoRecorderApp:
             activebackground=PRIMARY_ACTIVE,
         )
         self.microphone_box.configure(state="readonly")
+        self._set_quality_controls_state("readonly")
         self.refresh_button.configure(state="normal")
         self.open_folder_button.configure(state="normal")
         self.status_var.set("La gravació ha fallat; s'ha conservat el fitxer temporal.")

@@ -59,6 +59,24 @@ class FFmpegClientTests(unittest.TestCase):
         self.assertIn("1920:1080", " ".join(command))
         self.assertEqual(command[-1], str(output_dir / "recording.part.mp4"))
 
+    def test_record_command_uses_selected_720p_60_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory)
+            config = RecordingConfig(
+                Microphone("Microphone Array"),
+                output_dir,
+                width=1280,
+                height=720,
+                fps=60,
+            )
+            command = FFmpegClient(Path("ffmpeg.exe")).build_record_command(
+                config,
+                output_dir / "recording.part.mp4",
+            )
+
+        self.assertIn("1280:720", " ".join(command))
+        self.assertGreaterEqual(command.count("60"), 2)
+
     @patch("bizneo_recorder.ffmpeg.subprocess.run")
     def test_list_microphones_parses_stderr_even_when_ffmpeg_returns_one(
         self,
