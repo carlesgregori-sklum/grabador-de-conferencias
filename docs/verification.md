@@ -22,7 +22,7 @@ Entorn: Windows 11 Pro x64, pantalla principal 1920×1080
 
 - Font del build Windows de FFmpeg: `https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip`, enllaçada des de `ffmpeg.org/download.html`.
 - SHA-256 de l’arxiu FFmpeg descarregat: `DB580001CAA24AC104C8CB856CD113A87B0A443F7BDF47D8C12B1D740584A2EC`.
-- SHA-256 del ZIP portable amb selectors: `D1E0874FB96D5C47495B2302E3532E12C54760374DE239C47258C54E55B1F41B`.
+- SHA-256 del ZIP portable final amb selectors: `AF541832C33447D9EF5ACF80CEF59DA7A3E915EE3971EFED70077D91EDE7B378`.
 
 ## Revisió visual
 
