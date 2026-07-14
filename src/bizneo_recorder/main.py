@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-from .app import BizneoRecorderApp, format_elapsed
+from .app import BizneoRecorderApp
 from .ffmpeg import FFmpegClient, FFmpegError
 from .recorder import Recorder
 

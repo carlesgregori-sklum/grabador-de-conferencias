@@ -7,8 +7,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from bizneo_recorder.app import format_elapsed
 from bizneo_recorder.ffmpeg import DiagnosticResult
-from bizneo_recorder.main import format_elapsed, resource_path, run_self_test
+from bizneo_recorder.main import resource_path, run_self_test
 from bizneo_recorder.models import Microphone
 
 
@@ -60,4 +61,3 @@ class MainTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
