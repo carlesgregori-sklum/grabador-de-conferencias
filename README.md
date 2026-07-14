@@ -1,6 +1,6 @@
 # Bizneo Recorder
 
-Aplicació portàtil per gravar la pantalla principal Full HD i un micròfon en un MP4. Està pensada per crear explicacions breus de fluxos de Bizneo sense instal·lar un editor de vídeo.
+Aplicació portàtil per gravar la pantalla principal i un micròfon en un MP4. Permet triar entre 720p/1080p i 30/60 FPS, i està pensada per crear explicacions breus de fluxos de Bizneo sense instal·lar un editor de vídeo.
 
 ## Desenvolupament
 

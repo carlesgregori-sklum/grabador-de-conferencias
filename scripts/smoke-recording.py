@@ -19,6 +19,9 @@ def main() -> int:
     parser.add_argument("--ffmpeg", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--seconds", type=float, default=3.0)
+    parser.add_argument("--width", type=int, default=1920)
+    parser.add_argument("--height", type=int, default=1080)
+    parser.add_argument("--fps", type=int, default=30)
     args = parser.parse_args()
 
     client = FFmpegClient(args.ffmpeg)
@@ -28,8 +31,17 @@ def main() -> int:
         return 1
 
     recorder = Recorder(client)
-    final_path = recorder.start(RecordingConfig(microphones[0], args.output))
+    final_path = recorder.start(
+        RecordingConfig(
+            microphones[0],
+            args.output,
+            width=args.width,
+            height=args.height,
+            fps=args.fps,
+        )
+    )
     print(f"Recording with: {microphones[0].name}")
+    print(f"Profile: {args.width}x{args.height} at {args.fps} FPS")
     time.sleep(max(1.0, args.seconds))
     saved_path = recorder.stop()
     if saved_path != final_path:

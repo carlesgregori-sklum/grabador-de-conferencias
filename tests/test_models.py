@@ -30,7 +30,7 @@ class RecordingQualityTests(unittest.TestCase):
 
     def test_resolution_lookup_rejects_unsupported_label(self) -> None:
         self.assertEqual(get_resolution_preset("HD 720p").width, 1280)
-        with self.assertRaisesRegex(ValueError, "resolution"):
+        with self.assertRaisesRegex(ValueError, "resolució"):
             get_resolution_preset("4K")
 
     def test_parse_fps_accepts_only_supported_labels(self) -> None:
@@ -38,7 +38,7 @@ class RecordingQualityTests(unittest.TestCase):
         self.assertEqual(parse_fps("60 FPS"), 60)
         for unsupported in ("25 FPS", "60", "abc FPS"):
             with self.subTest(unsupported=unsupported):
-                with self.assertRaisesRegex(ValueError, "frame rate"):
+                with self.assertRaisesRegex(ValueError, "FPS"):
                     parse_fps(unsupported)
 
 

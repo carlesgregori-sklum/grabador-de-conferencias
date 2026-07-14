@@ -1,6 +1,9 @@
 param(
     [Parameter(Mandatory = $true)][string]$RecordingPath,
-    [Parameter(Mandatory = $true)][string]$FFprobePath
+    [Parameter(Mandatory = $true)][string]$FFprobePath,
+    [int]$ExpectedWidth = 1920,
+    [int]$ExpectedHeight = 1080,
+    [int]$ExpectedFps = 30
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,12 +25,21 @@ $audio = $streams | Where-Object { $_.codec_type -eq "audio" } | Select-Object -
 
 if ($null -eq $video) { throw "The recording has no video stream." }
 if ($video.codec_name -ne "h264") { throw "Expected H.264 video; found $($video.codec_name)." }
-if ([int]$video.width -ne 1920 -or [int]$video.height -ne 1080) {
-    throw "Expected 1920x1080 video; found $($video.width)x$($video.height)."
+if ([int]$video.width -ne $ExpectedWidth -or [int]$video.height -ne $ExpectedHeight) {
+    throw "Expected ${ExpectedWidth}x${ExpectedHeight} video; found $($video.width)x$($video.height)."
 }
 if ($null -eq $audio) { throw "The recording has no audio stream." }
 if ($audio.codec_name -ne "aac") { throw "Expected AAC audio; found $($audio.codec_name)." }
 if ([double]$probe.format.duration -le 0) { throw "The recording duration is not positive." }
 
-Write-Host "Recording verified: H.264 1920x1080 video, AAC audio, $($probe.format.duration) seconds."
+$rateParts = [string]$video.avg_frame_rate -split "/"
+if ($rateParts.Count -ne 2 -or [double]$rateParts[1] -eq 0) {
+    throw "Invalid average frame rate reported by ffprobe: $($video.avg_frame_rate)"
+}
+$actualFps = [double]$rateParts[0] / [double]$rateParts[1]
+if ([Math]::Abs($actualFps - $ExpectedFps) -gt 1.0) {
+    throw "Expected approximately $ExpectedFps FPS; found $actualFps FPS."
+}
+
+Write-Host "Recording verified: H.264 ${ExpectedWidth}x${ExpectedHeight} at $ExpectedFps FPS, AAC audio, $($probe.format.duration) seconds."
 

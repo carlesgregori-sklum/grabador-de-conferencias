@@ -37,7 +37,7 @@ def get_resolution_preset(label: str) -> ResolutionPreset:
     for preset in RESOLUTION_PRESETS:
         if preset.label == label:
             return preset
-    raise ValueError(f"unsupported resolution: {label!r}")
+    raise ValueError(f"resolució no admesa: {label!r}")
 
 
 def parse_fps(label: str) -> int:
@@ -45,7 +45,7 @@ def parse_fps(label: str) -> int:
     try:
         return labels[label]
     except KeyError as error:
-        raise ValueError(f"unsupported frame rate: {label!r}") from error
+        raise ValueError(f"FPS no admesos: {label!r}") from error
 
 
 @dataclass(frozen=True, slots=True)

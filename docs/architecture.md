@@ -22,7 +22,7 @@ Bizneo Recorder
 │   ├── app.py                        Interfície i coordinació asíncrona
 │   ├── ffmpeg.py                     Dispositius DirectShow i comandes FFmpeg
 │   ├── main.py                       Entrada GUI i mode --self-test
-│   ├── models.py                     Configuració i rutes d’eixida
+│   ├── models.py                     Presets, configuració i rutes d’eixida
 │   └── recorder.py                   Estat, procés i finalització segura
 └── tests/                             Proves unitàries dels mòduls anteriors
 ```
@@ -35,7 +35,7 @@ Bizneo Recorder
 Usuari
   │ selecciona micròfon i inicia
   ▼
-app.py ── RecordingConfig ──► recorder.py
+app.py ── presets + RecordingConfig ──► recorder.py
                                   │ construeix arguments
                                   ▼
                               ffmpeg.py
@@ -56,7 +56,8 @@ La interfície executa la detecció, l’inici i l’aturada en fils de treball 
 ## Decisions tècniques
 
 - `gdigrab` captura exclusivament l’escriptori principal; `dshow` rep exclusivament el nom del micròfon triat.
-- La resolució final és fixa a 1920×1080 amb escalat proporcional i farciment, evitant deformacions.
+- `models.py` defineix les dues resolucions i els dos FPS admesos; `app.py` transforma les etiquetes seleccionades en valors numèrics validats.
+- La resolució final és 1280×720 o 1920×1080, amb escalat proporcional i farciment per evitar deformacions.
 - El fitxer de treball usa `.part.mp4`. Només una eixida correcta de FFmpeg provoca el canvi atòmic al nom final.
 - Els diagnòstics de FFmpeg es drenen en un fil daemon amb memòria limitada, evitant bloquejos per ompliment del pipe.
 - El mode `--self-test` evita obrir la GUI i valida el còdec H.264 i la detecció de micròfons.
@@ -71,6 +72,7 @@ No s’han d’editar manualment els artefactes de `outputs`; cal reconstruir-lo
 
 - Només grava la pantalla principal.
 - No captura webcam, àudio del sistema ni anotacions.
-- La gravació està optimitzada per a 1920×1080; pantalles amb una altra proporció poden mostrar bandes de farciment.
+- Les resolucions disponibles són 720p i 1080p; pantalles amb una altra proporció poden mostrar bandes de farciment.
+- 60 FPS requereix més CPU i espai que 30 FPS.
 - L’executable no té una signatura de codi comercial i Windows pot mostrar SmartScreen la primera vegada.
 

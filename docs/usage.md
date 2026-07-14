@@ -5,16 +5,28 @@
 1. Descomprimeix `Bizneo-Recorder-Portable.zip` en una carpeta local.
 2. Conserva junts `Bizneo Recorder.exe` i la carpeta `tools`.
 3. Obri `Bizneo Recorder.exe`.
-4. Selecciona el micròfon i prem **Començar gravació**.
-5. Quan acabes l’explicació, recupera l’aplicació des de la barra de tasques i prem **Finalitzar i guardar**.
+4. Selecciona el micròfon, la resolució i els FPS.
+5. Prem **Començar gravació**.
+6. Quan acabes l’explicació, recupera l’aplicació des de la barra de tasques i prem **Finalitzar i guardar**.
 
 El resultat queda a `Vídeos\Bizneo Recorder` amb un nom com `Bizneo-2026-07-14-153010.mp4`.
 
-## Perfil de gravació
+## Qualitat de gravació
+
+La configuració inicial és **Full HD 1080p · 30 FPS**, recomanada per explicar pantalles de Bizneo amb text nítid i una càrrega moderada.
+
+| Selector | Opcions | Ús recomanat |
+|---|---|---|
+| Resolució | HD 720p / Full HD 1080p | 720p crea fitxers més lleugers; 1080p conserva millor el text. |
+| Fluïdesa | 30 FPS / 60 FPS | 30 FPS és suficient per a tutorials; 60 FPS és més fluid però genera fitxers més grans i exigeix més a l’equip. |
+
+Els selectors queden bloquejats durant la gravació i es reactiven quan el vídeo queda guardat o es produeix un error.
+
+## Perfil tècnic
 
 - Pantalla principal completa, cursor inclòs.
-- Resolució final de 1920×1080.
-- 30 fotogrames per segon.
+- Resolució final seleccionable: 1280×720 o 1920×1080.
+- Fluïdesa seleccionable: 30 o 60 fotogrames per segon.
 - Vídeo H.264 i àudio AAC.
 - Només el micròfon seleccionat; no grava l’àudio de Windows.
 
