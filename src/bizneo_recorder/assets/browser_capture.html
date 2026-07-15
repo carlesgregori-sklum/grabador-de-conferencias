@@ -284,14 +284,24 @@
           setStatus(error.message, "error");
         } else if (error instanceof DOMException && error.name === "NotAllowedError") {
           await reportError(new Error("Selecció cancel·lada."));
+          stopping = true;
           window.setTimeout(() => window.close(), 700);
         } else {
           await reportError(error);
+          stopping = true;
           window.setTimeout(() => window.close(), 700);
         }
       }
     }
 
+    window.addEventListener("beforeunload", () => {
+      if (stopping) return;
+      const payload = new Blob(
+        [JSON.stringify({ message: "S'ha tancat el selector de Chrome." })],
+        { type: "application/json" },
+      );
+      navigator.sendBeacon(`${apiBase}/error`, payload);
+    });
     selectButton.addEventListener("click", selectSource);
   </script>
 </body>

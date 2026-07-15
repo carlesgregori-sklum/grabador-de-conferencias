@@ -45,6 +45,8 @@ class BrowserCaptureBridgeTests(unittest.TestCase):
         self.assertIn("uploadChain", page)
         self.assertIn("class RetryableSelectionError", page)
         self.assertIn("error instanceof RetryableSelectionError", page)
+        self.assertIn('addEventListener("beforeunload"', page)
+        self.assertIn("navigator.sendBeacon", page)
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
