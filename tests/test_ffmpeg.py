@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from bizneo_recorder.ffmpeg import FFmpegClient, FFmpegError, parse_dshow_audio_devices
-from bizneo_recorder.models import Microphone, RecordingConfig
+from bizneo_recorder.models import CaptureMode, Microphone, RecordingConfig
 
 
 DEVICE_OUTPUT = r'''
@@ -120,6 +120,98 @@ class FFmpegClientTests(unittest.TestCase):
 
         self.assertIn("amix=inputs=2", " ".join(command))
         self.assertIn("[a]", command)
+
+    def test_microphone_command_records_only_the_selected_device(self) -> None:
+        config = RecordingConfig(
+            Path("videos"),
+            chrome_process_id=321,
+            microphone=Microphone("USB Microphone"),
+            capture_mode=CaptureMode.CHROME_TAB,
+        )
+        paths = config.next_paths()
+
+        command = FFmpegClient(Path("ffmpeg.exe")).build_microphone_command(
+            config,
+            paths.microphone_audio,
+        )
+
+        self.assertIn("audio=USB Microphone", command)
+        self.assertIn("pcm_s16le", command)
+        self.assertNotIn("gdigrab", command)
+        self.assertEqual(command[-1], str(paths.microphone_audio))
+
+    def test_selected_monitor_finalize_uses_browser_video_and_chrome_audio(self) -> None:
+        config = RecordingConfig(
+            Path("videos"),
+            chrome_process_id=321,
+            capture_mode=CaptureMode.SELECTED_MONITOR,
+        )
+        paths = config.next_paths()
+
+        command = FFmpegClient(Path("ffmpeg.exe")).build_finalize_command(
+            config,
+            paths,
+        )
+
+        self.assertIn(str(paths.browser_capture), command)
+        self.assertIn(str(paths.chrome_audio), command)
+        self.assertNotIn(str(paths.capture), command)
+        self.assertIn("libx264", command)
+        self.assertNotIn("amix", " ".join(command))
+
+    def test_selected_monitor_finalize_mixes_separate_microphone(self) -> None:
+        config = RecordingConfig(
+            Path("videos"),
+            chrome_process_id=321,
+            microphone=Microphone("USB Microphone"),
+            capture_mode=CaptureMode.SELECTED_MONITOR,
+        )
+        paths = config.next_paths()
+
+        command = FFmpegClient(Path("ffmpeg.exe")).build_finalize_command(
+            config,
+            paths,
+        )
+
+        self.assertIn(str(paths.microphone_audio), command)
+        self.assertIn("amix=inputs=2", " ".join(command))
+
+    def test_chrome_tab_finalize_uses_embedded_tab_audio(self) -> None:
+        config = RecordingConfig(
+            Path("videos"),
+            chrome_process_id=321,
+            capture_mode=CaptureMode.CHROME_TAB,
+        )
+        paths = config.next_paths()
+
+        command = FFmpegClient(Path("ffmpeg.exe")).build_finalize_command(
+            config,
+            paths,
+        )
+
+        self.assertIn(str(paths.browser_capture), command)
+        self.assertNotIn(str(paths.chrome_audio), command)
+        self.assertNotIn(str(paths.capture), command)
+        self.assertIn("0:a:0", command)
+        self.assertIn("libx264", command)
+
+    def test_chrome_tab_finalize_mixes_embedded_audio_and_microphone(self) -> None:
+        config = RecordingConfig(
+            Path("videos"),
+            chrome_process_id=321,
+            microphone=Microphone("USB Microphone"),
+            capture_mode=CaptureMode.CHROME_TAB,
+        )
+        paths = config.next_paths()
+
+        command = FFmpegClient(Path("ffmpeg.exe")).build_finalize_command(
+            config,
+            paths,
+        )
+
+        self.assertIn(str(paths.microphone_audio), command)
+        self.assertNotIn(str(paths.chrome_audio), command)
+        self.assertIn("amix=inputs=2", " ".join(command))
 
     @patch("bizneo_recorder.ffmpeg.subprocess.run")
     def test_list_microphones_parses_stderr_even_when_ffmpeg_returns_one(

@@ -5,7 +5,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from .models import Microphone, RecordingConfig, RecordingPaths
+from .models import CaptureMode, Microphone, RecordingConfig, RecordingPaths
 
 
 class FFmpegError(RuntimeError):
@@ -159,11 +159,46 @@ class FFmpegClient:
         command.append(str(capture_path))
         return command
 
+    def build_microphone_command(
+        self,
+        config: RecordingConfig,
+        microphone_path: Path,
+    ) -> list[str]:
+        if config.microphone is None:
+            raise FFmpegError("No hi ha cap micròfon seleccionat.")
+        return [
+            str(self.executable),
+            "-hide_banner",
+            "-loglevel",
+            "warning",
+            "-y",
+            "-thread_queue_size",
+            "1024",
+            "-f",
+            "dshow",
+            "-i",
+            f"audio={config.microphone.name}",
+            "-af",
+            "aresample=44100:async=1:first_pts=0,"
+            "aformat=sample_fmts=s16:channel_layouts=stereo",
+            "-vn",
+            "-c:a",
+            "pcm_s16le",
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            str(microphone_path),
+        ]
+
     def build_finalize_command(
         self,
         config: RecordingConfig,
         paths: RecordingPaths,
     ) -> list[str]:
+        if config.capture_mode is not CaptureMode.PRIMARY_SCREEN:
+            return self._build_browser_finalize_command(config, paths)
+
         command = [
             str(self.executable),
             "-hide_banner",
@@ -195,6 +230,90 @@ class FFmpegClient:
             [
                 "-c:v",
                 "copy",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-ar",
+                "44100",
+                "-movflags",
+                "+faststart",
+                "-shortest",
+                str(paths.partial),
+            ]
+        )
+        return command
+
+    def _build_browser_finalize_command(
+        self,
+        config: RecordingConfig,
+        paths: RecordingPaths,
+    ) -> list[str]:
+        size = f"{config.width}:{config.height}"
+        video_filter = (
+            f"scale={size}:force_original_aspect_ratio=decrease,"
+            f"pad={size}:(ow-iw)/2:(oh-ih)/2,setsar=1"
+        )
+        command = [
+            str(self.executable),
+            "-hide_banner",
+            "-loglevel",
+            "warning",
+            "-y",
+            "-i",
+            str(paths.browser_capture),
+        ]
+
+        if config.capture_mode is CaptureMode.SELECTED_MONITOR:
+            command.extend(["-i", str(paths.chrome_audio)])
+            source_audio_index = 1
+        else:
+            source_audio_index = 0
+
+        if config.microphone is None:
+            command.extend(
+                [
+                    "-vf",
+                    video_filter,
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    f"{source_audio_index}:a:0",
+                ]
+            )
+        else:
+            microphone_index = source_audio_index + 1
+            command.extend(["-i", str(paths.microphone_audio)])
+            command.extend(
+                [
+                    "-filter_complex",
+                    f"[0:v]{video_filter}[v];"
+                    f"[{source_audio_index}:a]"
+                    "aresample=44100:async=1:first_pts=0[source];"
+                    f"[{microphone_index}:a]"
+                    "aresample=44100:async=1:first_pts=0[mic];"
+                    "[source][mic]amix=inputs=2:duration=longest:"
+                    "dropout_transition=0,"
+                    "aresample=44100:async=1:first_pts=0[a]",
+                    "-map",
+                    "[v]",
+                    "-map",
+                    "[a]",
+                ]
+            )
+
+        command.extend(
+            [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                "-r",
+                str(config.fps),
                 "-c:a",
                 "aac",
                 "-b:a",
