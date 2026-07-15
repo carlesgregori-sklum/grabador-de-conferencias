@@ -43,35 +43,58 @@ class RecordingQualityTests(unittest.TestCase):
 
 
 class RecordingConfigTests(unittest.TestCase):
-    def test_next_paths_uses_timestamp_and_part_suffix(self) -> None:
+    def test_config_allows_chrome_audio_without_microphone(self) -> None:
+        config = RecordingConfig(Path("videos"), chrome_process_id=321)
+
+        self.assertIsNone(config.microphone)
+
+    def test_next_paths_covers_every_intermediate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            config = RecordingConfig(Microphone("Mic"), Path(directory))
+            config = RecordingConfig(Path(directory), chrome_process_id=321)
 
-            final, working = config.next_paths(datetime(2026, 7, 14, 15, 30, 10))
+            paths = config.next_paths(datetime(2026, 7, 15, 9, 30, 0))
 
-            self.assertEqual(final.name, "Bizneo-2026-07-14-153010.mp4")
-            self.assertEqual(working.name, "Bizneo-2026-07-14-153010.part.mp4")
+            self.assertEqual(paths.final.name, "Conference-2026-07-15-093000.mp4")
+            self.assertEqual(
+                paths.partial.name,
+                "Conference-2026-07-15-093000.part.mp4",
+            )
+            self.assertEqual(
+                paths.capture.name,
+                "Conference-2026-07-15-093000.capture.mkv",
+            )
+            self.assertEqual(
+                paths.chrome_audio.name,
+                "Conference-2026-07-15-093000.chrome.wav",
+            )
 
     def test_next_paths_avoids_existing_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output_dir = Path(directory)
-            (output_dir / "Bizneo-2026-07-14-153010.mp4").touch()
-            config = RecordingConfig(Microphone("Mic"), output_dir)
+            (output_dir / "Conference-2026-07-15-093000.chrome.wav").touch()
+            config = RecordingConfig(output_dir, chrome_process_id=321)
 
-            final, working = config.next_paths(datetime(2026, 7, 14, 15, 30, 10))
+            paths = config.next_paths(datetime(2026, 7, 15, 9, 30, 0))
 
-            self.assertEqual(final.name, "Bizneo-2026-07-14-153010-2.mp4")
-            self.assertEqual(working.name, "Bizneo-2026-07-14-153010-2.part.mp4")
+            self.assertEqual(paths.final.name, "Conference-2026-07-15-093000-2.mp4")
 
     def test_config_rejects_empty_microphone_name(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "microphone"):
-                RecordingConfig(Microphone("  "), Path(directory))
+                RecordingConfig(
+                    Path(directory),
+                    chrome_process_id=321,
+                    microphone=Microphone("  "),
+                )
+
+    def test_config_rejects_invalid_chrome_pid(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Chrome"):
+            RecordingConfig(Path("videos"), chrome_process_id=0)
 
     def test_config_rejects_invalid_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "dimensions"):
-                RecordingConfig(Microphone("Mic"), Path(directory), width=0)
+                RecordingConfig(Path(directory), chrome_process_id=321, width=0)
 
 
 if __name__ == "__main__":

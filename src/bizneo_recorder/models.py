@@ -49,33 +49,55 @@ def parse_fps(label: str) -> int:
 
 
 @dataclass(frozen=True, slots=True)
+class RecordingPaths:
+    """All final and temporary paths owned by one recording session."""
+
+    final: Path
+    partial: Path
+    capture: Path
+    chrome_audio: Path
+
+    def intermediates(self) -> tuple[Path, Path, Path]:
+        return self.partial, self.capture, self.chrome_audio
+
+
+@dataclass(frozen=True, slots=True)
 class RecordingConfig:
     """Validated values required to start one recording."""
 
-    microphone: Microphone
     output_dir: Path
+    chrome_process_id: int
+    microphone: Microphone | None = None
     width: int = 1920
     height: int = 1080
     fps: int = 30
 
     def __post_init__(self) -> None:
+        if self.chrome_process_id <= 0:
+            raise ValueError("el PID de Chrome ha de ser positiu")
         if self.width <= 0 or self.height <= 0:
             raise ValueError("recording dimensions must be positive")
         if self.fps <= 0:
             raise ValueError("recording frame rate must be positive")
         object.__setattr__(self, "output_dir", Path(self.output_dir))
 
-    def next_paths(self, now: datetime | None = None) -> tuple[Path, Path]:
+    def next_paths(self, now: datetime | None = None) -> RecordingPaths:
         stamp = (now or datetime.now()).strftime("%Y-%m-%d-%H%M%S")
-        stem = f"Bizneo-{stamp}"
-        final_path = self.output_dir / f"{stem}.mp4"
-        working_path = self.output_dir / f"{stem}.part.mp4"
+        stem = f"Conference-{stamp}"
         counter = 2
 
-        while final_path.exists() or working_path.exists():
-            final_path = self.output_dir / f"{stem}-{counter}.mp4"
-            working_path = self.output_dir / f"{stem}-{counter}.part.mp4"
+        def build_paths(candidate_stem: str) -> RecordingPaths:
+            return RecordingPaths(
+                final=self.output_dir / f"{candidate_stem}.mp4",
+                partial=self.output_dir / f"{candidate_stem}.part.mp4",
+                capture=self.output_dir / f"{candidate_stem}.capture.mkv",
+                chrome_audio=self.output_dir / f"{candidate_stem}.chrome.wav",
+            )
+
+        paths = build_paths(stem)
+        while any(path.exists() for path in (paths.final, *paths.intermediates())):
+            paths = build_paths(f"{stem}-{counter}")
             counter += 1
 
-        return final_path, working_path
+        return paths
 
