@@ -87,7 +87,7 @@ def enumerate_processes() -> list[ProcessInfo]:
     snapshot = create_snapshot(0x00000002, 0)
     if snapshot == wintypes.HANDLE(-1).value:
         raise ProcessDiscoveryError(
-            f"Windows no ha pogut enumerar els processos ({ctypes.get_last_error()})."
+            f"Windows no pudo enumerar los procesos ({ctypes.get_last_error()})."
         )
 
     processes: list[ProcessInfo] = []
@@ -97,7 +97,7 @@ def enumerate_processes() -> list[ProcessInfo]:
         if not process_first(snapshot, ctypes.byref(entry)):
             error = ctypes.get_last_error()
             raise ProcessDiscoveryError(
-                f"Windows no ha pogut llegir els processos ({error})."
+                f"Windows no pudo leer los procesos ({error})."
             )
         while True:
             processes.append(
@@ -122,7 +122,7 @@ def query_process_executable(pid: int) -> Path:
     """Return the executable path for a process using limited query access."""
 
     if pid <= 0:
-        raise ProcessDiscoveryError("El PID de Chrome no és vàlid.")
+        raise ProcessDiscoveryError("El PID de Chrome no es válido.")
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     open_process = kernel32.OpenProcess
@@ -143,7 +143,7 @@ def query_process_executable(pid: int) -> Path:
     handle = open_process(0x1000, False, pid)
     if not handle:
         raise ProcessDiscoveryError(
-            f"Windows no ha pogut obrir Chrome ({ctypes.get_last_error()})."
+            f"Windows no pudo abrir Chrome ({ctypes.get_last_error()})."
         )
 
     try:
@@ -151,7 +151,7 @@ def query_process_executable(pid: int) -> Path:
         size = wintypes.DWORD(len(buffer))
         if not query_path(handle, 0, buffer, ctypes.byref(size)):
             raise ProcessDiscoveryError(
-                "Windows no ha pogut localitzar l'executable de Chrome "
+                "Windows no pudo localizar el ejecutable de Chrome "
                 f"({ctypes.get_last_error()})."
             )
         return Path(buffer.value)

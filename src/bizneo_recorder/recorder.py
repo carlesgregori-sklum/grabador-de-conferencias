@@ -59,7 +59,7 @@ class Recorder:
     @property
     def paths(self) -> RecordingPaths:
         if self._paths is None:
-            raise RecorderError("Encara no hi ha cap gravació preparada.")
+            raise RecorderError("Todavía no hay ninguna grabación preparada.")
         return self._paths
 
     @property
@@ -76,7 +76,7 @@ class Recorder:
         chrome_executable: Path | None = None,
     ) -> Path:
         if self.state is not RecorderState.IDLE:
-            raise RecorderError("Ja hi ha una gravació en marxa.")
+            raise RecorderError("Ya hay una grabación en marcha.")
 
         config.output_dir.mkdir(parents=True, exist_ok=True)
         self._paths = config.next_paths()
@@ -107,7 +107,7 @@ class Recorder:
             self._start_ffmpeg(command)
         except RecorderError as error:
             raise RecorderError(
-                f"No s'ha pogut iniciar la captura de pantalla: {error}"
+                f"No se pudo iniciar la captura de pantalla: {error}"
             ) from error
 
     def _start_browser_capture(
@@ -116,9 +116,9 @@ class Recorder:
         chrome_executable: Path | None,
     ) -> None:
         if chrome_executable is None:
-            raise RecorderError("No s'ha trobat l'executable de Chrome.")
+            raise RecorderError("No se encontró el ejecutable de Chrome.")
         if self._browser_capture_factory is None:
-            raise RecorderError("El selector de Chrome no està disponible.")
+            raise RecorderError("El selector de Chrome no está disponible.")
 
         bridge = self._browser_capture_factory(config, self.paths)
         self._browser_capture = bridge
@@ -136,7 +136,7 @@ class Recorder:
                 self._start_ffmpeg(command)
             except RecorderError as error:
                 raise RecorderError(
-                    f"No s'ha pogut iniciar el micròfon: {error}"
+                    f"No se pudo iniciar el micrófono: {error}"
                 ) from error
         bridge.begin()
 
@@ -148,7 +148,7 @@ class Recorder:
             )
         except (ChromeAudioError, OSError) as error:
             raise RecorderError(
-                f"No s'ha pogut iniciar l'àudio de Chrome: {error}"
+                f"No se pudo iniciar el audio de Chrome: {error}"
             ) from error
 
     def _start_ffmpeg(self, command: list[str]) -> None:
@@ -206,7 +206,7 @@ class Recorder:
 
     def stop(self, timeout: float = 15.0) -> Path:
         if self.state is not RecorderState.RECORDING or self._config is None:
-            raise RecorderError("No hi ha cap gravació en marxa.")
+            raise RecorderError("No hay ninguna grabación en marcha.")
 
         self.state = RecorderState.STOPPING
         try:
@@ -214,7 +214,7 @@ class Recorder:
             self._validate_capture_file(self._config)
             self.client.run_finalize(self._config, self.paths)
             if not self.paths.partial.is_file():
-                raise RecorderError("FFmpeg no ha creat l'MP4 final temporal.")
+                raise RecorderError("FFmpeg no ha creado el MP4 final temporal.")
             self.paths.partial.replace(self.paths.final)
             self._remove_intermediates()
             return self.paths.final
@@ -231,7 +231,7 @@ class Recorder:
         errors: list[str] = []
         config = self._config
         if config is None:
-            raise RecorderError("No hi ha cap configuració activa.")
+            raise RecorderError("No hay ninguna configuración activa.")
 
         if self._browser_capture is not None:
             try:
@@ -258,10 +258,10 @@ class Recorder:
         if config.capture_mode is CaptureMode.PRIMARY_SCREEN:
             if not self.paths.capture.is_file():
                 raise RecorderError(
-                    "La captura de pantalla no ha creat el fitxer temporal."
+                    "La captura de pantalla no ha creado el archivo temporal."
                 )
         elif not self.paths.browser_capture.is_file():
-            raise RecorderError("Chrome no ha creat el vídeo temporal.")
+            raise RecorderError("Chrome no ha creado el vídeo temporal.")
 
     def _stop_ffmpeg(self, timeout: float) -> None:
         process = self._ffmpeg_process
@@ -275,7 +275,7 @@ class Recorder:
         except subprocess.TimeoutExpired:
             process.kill()
             return_code = process.wait(timeout=5.0)
-            self._stderr_lines.append("FFmpeg no s'ha aturat dins del temps esperat.")
+            self._stderr_lines.append("FFmpeg no se detuvo dentro del tiempo esperado.")
         except (BrokenPipeError, OSError, ValueError) as error:
             return_code = process.poll()
             self._stderr_lines.append(str(error))
@@ -286,7 +286,7 @@ class Recorder:
         if return_code != 0:
             diagnostic = "\n".join(list(self._stderr_lines)[-8:]).strip()
             raise RecorderError(
-                diagnostic or f"FFmpeg ha finalitzat amb el codi {return_code}."
+                diagnostic or f"FFmpeg finalizó con el código {return_code}."
             )
 
     def _abort_live_components(self) -> None:

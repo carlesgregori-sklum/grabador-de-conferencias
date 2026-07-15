@@ -44,8 +44,8 @@ class ChromeAudioHelperTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Process loopback: supported", result.stdout)
-        self.assertIn("Completion handler: agile", result.stdout)
+        self.assertIn("Captura de audio por proceso: compatible", result.stdout)
+        self.assertIn("Controlador de finalización: ágil", result.stdout)
 
     def test_helper_rejects_invalid_pid(self) -> None:
         result = subprocess.run(
@@ -71,7 +71,7 @@ class ChromeAudioHelperTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Usage", result.stderr)
+        self.assertIn("Uso", result.stderr)
 
 
 if __name__ == "__main__":

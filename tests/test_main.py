@@ -35,7 +35,9 @@ class FakeChromeAudioClient:
     def diagnose(self) -> ChromeAudioDiagnostic:
         return ChromeAudioDiagnostic(
             self.supported,
-            "Process loopback: supported" if self.supported else "unsupported",
+            "Captura de audio por proceso: compatible"
+            if self.supported
+            else "no compatible",
         )
 
 

@@ -65,22 +65,22 @@ class ChromeAudioProcess:
             self.process.kill()
             return_code = self.process.wait(timeout=5.0)
             raise ChromeAudioError(
-                "La captura d'àudio de Chrome no s'ha aturat dins del temps esperat."
+                "La captura de audio de Chrome no se detuvo dentro del tiempo esperado."
             )
         except (BrokenPipeError, OSError, ValueError) as error:
             raise ChromeAudioError(
-                f"No s'ha pogut parar l'àudio de Chrome: {error}"
+                f"No se pudo detener el audio de Chrome: {error}"
             ) from error
 
         if return_code != 0:
             diagnostic = _bounded_stderr(self.process)
             raise ChromeAudioError(
                 diagnostic
-                or f"El capturador d'àudio de Chrome ha finalitzat amb el codi {return_code}."
+                or f"El capturador de audio de Chrome finalizó con el código {return_code}."
             )
         if not self.output_path.is_file() or self.output_path.stat().st_size < 44:
             raise ChromeAudioError(
-                "El capturador de Chrome no ha creat un WAV vàlid."
+                "El capturador de Chrome no ha creado un WAV válido."
             )
 
 
@@ -120,7 +120,7 @@ class ChromeAudioClient:
         ready_timeout: float = 10.0,
     ) -> ChromeAudioProcess:
         if process_id <= 0:
-            raise ChromeAudioError("El PID de Chrome no és vàlid.")
+            raise ChromeAudioError("El PID de Chrome no es válido.")
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         command = [str(self.executable), str(process_id), str(output_path)]
@@ -138,19 +138,19 @@ class ChromeAudioClient:
             )
         except (FileNotFoundError, OSError, ValueError) as error:
             raise ChromeAudioError(
-                "No s'ha trobat el capturador d'àudio de Chrome. "
+                "No se encontró el capturador de audio de Chrome. "
                 "Conserva completa la carpeta portable."
             ) from error
 
         if process.stdout is None:
             process.kill()
-            raise ChromeAudioError("El capturador de Chrome no té canal de control.")
+            raise ChromeAudioError("El capturador de Chrome no tiene canal de control.")
         ready_line = _readline_with_timeout(process.stdout, ready_timeout)
         if ready_line is None:
             process.kill()
             process.wait(timeout=5.0)
             raise ChromeAudioError(
-                "Windows no ha preparat l'àudio de Chrome dins del temps esperat."
+                "Windows no preparó el audio de Chrome dentro del tiempo esperado."
             )
         if ready_line.strip() != "READY":
             if process.poll() is None:
@@ -158,6 +158,6 @@ class ChromeAudioClient:
                 process.wait(timeout=5.0)
             diagnostic = _bounded_stderr(process)
             raise ChromeAudioError(
-                diagnostic or "No s'ha pogut preparar l'àudio de Chrome."
+                diagnostic or "No se pudo preparar el audio de Chrome."
             )
         return ChromeAudioProcess(process_id, output_path, process)

@@ -72,7 +72,7 @@ class FFmpegClient:
             )
         except (FileNotFoundError, OSError) as error:
             raise FFmpegError(
-                "No s'ha trobat FFmpeg. Torna a copiar la carpeta portàtil completa."
+                "No se encontró FFmpeg. Vuelve a copiar la carpeta portable completa."
             ) from error
 
     def list_microphones(self) -> list[Microphone]:
@@ -165,7 +165,7 @@ class FFmpegClient:
         microphone_path: Path,
     ) -> list[str]:
         if config.microphone is None:
-            raise FFmpegError("No hi ha cap micròfon seleccionat.")
+            raise FFmpegError("No hay ningún micrófono seleccionado.")
         return [
             str(self.executable),
             "-hide_banner",
@@ -341,12 +341,12 @@ class FFmpegClient:
             )
         except (FileNotFoundError, OSError) as error:
             raise FFmpegError(
-                "No s'ha pogut obrir FFmpeg per finalitzar el vídeo."
+                "No se pudo abrir FFmpeg para finalizar el vídeo."
             ) from error
         if result.returncode != 0:
             diagnostic = "\n".join(result.stderr.strip().splitlines()[-8:])
             raise FFmpegError(
                 diagnostic
-                or f"FFmpeg ha fallat en finalitzar amb el codi {result.returncode}."
+                or f"FFmpeg falló al finalizar con el código {result.returncode}."
             )
 

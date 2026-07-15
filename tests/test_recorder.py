@@ -195,7 +195,7 @@ class RecorderTests(unittest.TestCase):
         recorder, _, _ = self.make_recorder()
         recorder.start(self.config)
 
-        with self.assertRaisesRegex(RecorderError, "marxa"):
+        with self.assertRaisesRegex(RecorderError, "marcha"):
             recorder.start(self.config)
 
     def test_screen_start_failure_stops_helper_and_resets_state(self) -> None:

@@ -196,7 +196,7 @@ class BrowserCaptureBridge:
         token_factory: TokenFactory = secrets.token_urlsafe,
     ) -> None:
         if mode not in (CaptureMode.SELECTED_MONITOR, CaptureMode.CHROME_TAB):
-            raise ValueError("el pont del navegador requereix monitor o pestanya")
+            raise ValueError("el puente del navegador requiere monitor o pestaña")
         self.page_html = page_html
         self.mode = mode
         self.output_path = Path(output_path)
@@ -219,7 +219,7 @@ class BrowserCaptureBridge:
     @property
     def base_url(self) -> str:
         if self._server is None:
-            raise BrowserCaptureError("El pont local encara no està obert.")
+            raise BrowserCaptureError("El puente local todavía no está abierto.")
         host, port = self._server.server_address[:2]
         return f"http://{host}:{port}"
 
@@ -230,7 +230,7 @@ class BrowserCaptureBridge:
 
     def start(self, chrome_executable: Path) -> None:
         if self._server is not None:
-            raise BrowserCaptureError("El pont local ja està obert.")
+            raise BrowserCaptureError("El puente local ya está abierto.")
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         self._server = _BridgeServer(("127.0.0.1", 0), self)
         self._server_thread = threading.Thread(
@@ -252,7 +252,7 @@ class BrowserCaptureBridge:
         except (OSError, ValueError) as error:
             self.close()
             raise BrowserCaptureError(
-                f"No s'ha pogut obrir el selector en Chrome: {error}"
+                f"No se pudo abrir el selector en Chrome: {error}"
             ) from error
 
     def render_page(self) -> str:
@@ -268,22 +268,22 @@ class BrowserCaptureBridge:
         has_audio = payload.get("has_audio")
         mime_type = payload.get("mime_type")
         if not isinstance(surface, str) or not isinstance(has_audio, bool):
-            raise BrowserCaptureError("Chrome ha retornat una font invàlida.")
+            raise BrowserCaptureError("Chrome ha devuelto una fuente no válida.")
         if not isinstance(mime_type, str) or len(mime_type) > 128:
-            raise BrowserCaptureError("Chrome ha retornat un format invàlid.")
+            raise BrowserCaptureError("Chrome ha devuelto un formato no válido.")
         if self.mode is CaptureMode.SELECTED_MONITOR and surface != "monitor":
             raise BrowserCaptureError("Selecciona una pantalla completa en Chrome.")
         if self.mode is CaptureMode.CHROME_TAB:
             if surface != "browser":
-                raise BrowserCaptureError("Selecciona una pestanya de Chrome.")
+                raise BrowserCaptureError("Selecciona una pestaña de Chrome.")
             if not has_audio:
                 raise BrowserCaptureError(
-                    "Activa «Compartir també l'àudio» per gravar la pestanya."
+                    "Activa «Compartir también el audio» para grabar la pestaña."
                 )
         metadata = BrowserCaptureMetadata(surface, has_audio, mime_type)
         with self._condition:
             if self._metadata is not None and self._metadata != metadata:
-                raise BrowserCaptureError("La font seleccionada ja estava preparada.")
+                raise BrowserCaptureError("La fuente seleccionada ya estaba preparada.")
             self._metadata = metadata
             self._condition.notify_all()
 
@@ -294,14 +294,14 @@ class BrowserCaptureBridge:
 
     def accept_chunk(self, sequence: int, body: bytes) -> None:
         if sequence < 0:
-            raise BrowserCaptureError("La seqüència del fragment no és vàlida.")
+            raise BrowserCaptureError("La secuencia del fragment no es válida.")
         digest = hashlib.sha256(body).digest()
         with self._condition:
             if sequence == self._last_sequence and digest == self._last_digest:
                 return
             if sequence != self._expected_sequence:
                 raise BrowserCaptureError(
-                    f"S'esperava el fragment {self._expected_sequence}."
+                    f"Se esperaba el fragmento {self._expected_sequence}."
                 )
             with self.output_path.open("ab") as stream:
                 stream.write(body)
@@ -329,14 +329,14 @@ class BrowserCaptureBridge:
             self._raise_error_locked()
             if not ready or self._metadata is None:
                 raise BrowserCaptureError(
-                    "S'ha esgotat el temps per seleccionar la font en Chrome."
+                    "Se agotó el tiempo para seleccionar la fuente en Chrome."
                 )
             return self._metadata
 
     def begin(self, timeout: float = 10.0) -> None:
         with self._condition:
             if self._metadata is None:
-                raise BrowserCaptureError("Chrome encara no ha preparat la font.")
+                raise BrowserCaptureError("Chrome todavía no ha preparado la fuente.")
             self._command = "start"
             self._condition.notify_all()
             started = self._condition.wait_for(
@@ -345,7 +345,7 @@ class BrowserCaptureBridge:
             )
             self._raise_error_locked()
             if not started:
-                raise BrowserCaptureError("Chrome no ha començat la gravació.")
+                raise BrowserCaptureError("Chrome no ha iniciado la grabación.")
 
     def stop(self, timeout: float = 15.0) -> None:
         with self._condition:
@@ -357,9 +357,9 @@ class BrowserCaptureBridge:
             )
             self._raise_error_locked()
             if not completed:
-                raise BrowserCaptureError("Chrome no ha tancat la gravació a temps.")
+                raise BrowserCaptureError("Chrome no cerró la grabación a tiempo.")
         if not self.output_path.is_file() or self.output_path.stat().st_size == 0:
-            raise BrowserCaptureError("Chrome no ha creat el vídeo temporal.")
+            raise BrowserCaptureError("Chrome no ha creado el vídeo temporal.")
 
     def poll(self) -> str | None:
         with self._condition:

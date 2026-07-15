@@ -550,7 +550,7 @@ class OrbitalRecorder(tk.Canvas):
 
     def set_state(self, state: str) -> None:
         if state not in self.STATE_COLORS:
-            raise ValueError(f"unknown orbital state: {state}")
+            raise ValueError(f"estado visual desconocido: {state}")
         self.state = state
         self._draw()
 

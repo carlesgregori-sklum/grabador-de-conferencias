@@ -18,20 +18,20 @@ namespace ConferenceRecorder.Native
             }
             if (args.Length != 2)
             {
-                Console.Error.WriteLine("Usage: chrome-audio-capture.exe <PID> <output.wav>");
+                Console.Error.WriteLine("Uso: chrome-audio-capture.exe <PID> <salida.wav>");
                 return 2;
             }
 
             int processId;
             if (!Int32.TryParse(args[0], out processId) || processId <= 0)
             {
-                Console.Error.WriteLine("PID must be a positive integer.");
+                Console.Error.WriteLine("El PID debe ser un número entero positivo.");
                 return 2;
             }
 
             if (!IsProcessLoopbackSupported())
             {
-                Console.Error.WriteLine("Process loopback requires Windows build " + MinimumBuild + " or later.");
+                Console.Error.WriteLine("La captura de audio por proceso requiere Windows build " + MinimumBuild + " o posterior.");
                 return 3;
             }
 
@@ -55,7 +55,7 @@ namespace ConferenceRecorder.Native
             }
             catch (Exception error)
             {
-                Console.Error.WriteLine("Chrome audio capture failed: " + error.Message);
+                Console.Error.WriteLine("La captura de audio de Chrome ha fallado: " + error.Message);
                 return 3;
             }
         }
@@ -64,7 +64,7 @@ namespace ConferenceRecorder.Native
         {
             if (!IsProcessLoopbackSupported())
             {
-                Console.Error.WriteLine("Process loopback: unsupported; Windows build " + MinimumBuild + " or later is required.");
+                Console.Error.WriteLine("Captura de audio por proceso: no compatible; se requiere Windows build " + MinimumBuild + " o posterior.");
                 return 1;
             }
             ProcessLoopbackCapture probe = new ProcessLoopbackCapture(
@@ -74,7 +74,7 @@ namespace ConferenceRecorder.Native
             {
                 if (!probe.IsAgileCompletionHandler())
                 {
-                    Console.Error.WriteLine("Completion handler: not agile");
+                    Console.Error.WriteLine("Controlador de finalización: no ágil");
                     return 1;
                 }
             }
@@ -82,9 +82,9 @@ namespace ConferenceRecorder.Native
             {
                 probe.Dispose();
             }
-            Console.WriteLine("Process loopback: supported");
-            Console.WriteLine("Completion handler: agile");
-            Console.WriteLine("Format: PCM 44100 Hz, stereo, 16-bit");
+            Console.WriteLine("Captura de audio por proceso: compatible");
+            Console.WriteLine("Controlador de finalización: ágil");
+            Console.WriteLine("Formato: PCM 44100 Hz, estéreo, 16 bits");
             return 0;
         }
 

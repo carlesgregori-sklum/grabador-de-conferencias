@@ -15,7 +15,7 @@ class Microphone:
 
     def __post_init__(self) -> None:
         if not self.name.strip():
-            raise ValueError("microphone name cannot be empty")
+            raise ValueError("el nombre del micrófono no puede estar vacío")
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,7 +113,7 @@ class RecordingConfig:
 
     def next_paths(self, now: datetime | None = None) -> RecordingPaths:
         stamp = (now or datetime.now()).strftime("%Y-%m-%d-%H%M%S")
-        stem = f"Conference-{stamp}"
+        stem = f"Grabacion-{stamp}"
         counter = 2
 
         def build_paths(candidate_stem: str) -> RecordingPaths:

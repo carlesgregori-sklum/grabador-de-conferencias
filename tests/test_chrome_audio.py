@@ -85,7 +85,7 @@ class ChromeAudioClientTests(unittest.TestCase):
         completed = subprocess.CompletedProcess(
             ["helper.exe", "--self-test"],
             0,
-            "Process loopback: supported\n",
+            "Captura de audio por proceso: compatible\n",
             "",
         )
         calls: list[list[str]] = []
