@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 
 
@@ -33,6 +34,19 @@ RESOLUTION_PRESETS: tuple[ResolutionPreset, ...] = (
 SUPPORTED_FPS: tuple[int, ...] = (30, 60)
 
 
+class CaptureMode(str, Enum):
+    PRIMARY_SCREEN = "primary_screen"
+    SELECTED_MONITOR = "selected_monitor"
+    CHROME_TAB = "chrome_tab"
+
+
+CAPTURE_MODE_LABELS: dict[str, CaptureMode] = {
+    "Tota la pantalla principal": CaptureMode.PRIMARY_SCREEN,
+    "Una pantalla concreta": CaptureMode.SELECTED_MONITOR,
+    "Una pestanya de Chrome": CaptureMode.CHROME_TAB,
+}
+
+
 def get_resolution_preset(label: str) -> ResolutionPreset:
     for preset in RESOLUTION_PRESETS:
         if preset.label == label:
@@ -48,6 +62,13 @@ def parse_fps(label: str) -> int:
         raise ValueError(f"FPS no admesos: {label!r}") from error
 
 
+def parse_capture_mode(label: str) -> CaptureMode:
+    try:
+        return CAPTURE_MODE_LABELS[label]
+    except KeyError as error:
+        raise ValueError(f"font de captura no admesa: {label!r}") from error
+
+
 @dataclass(frozen=True, slots=True)
 class RecordingPaths:
     """All final and temporary paths owned by one recording session."""
@@ -56,9 +77,17 @@ class RecordingPaths:
     partial: Path
     capture: Path
     chrome_audio: Path
+    browser_capture: Path
+    microphone_audio: Path
 
-    def intermediates(self) -> tuple[Path, Path, Path]:
-        return self.partial, self.capture, self.chrome_audio
+    def intermediates(self) -> tuple[Path, ...]:
+        return (
+            self.partial,
+            self.capture,
+            self.chrome_audio,
+            self.browser_capture,
+            self.microphone_audio,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +100,7 @@ class RecordingConfig:
     width: int = 1920
     height: int = 1080
     fps: int = 30
+    capture_mode: CaptureMode = CaptureMode.PRIMARY_SCREEN
 
     def __post_init__(self) -> None:
         if self.chrome_process_id <= 0:
@@ -92,6 +122,8 @@ class RecordingConfig:
                 partial=self.output_dir / f"{candidate_stem}.part.mp4",
                 capture=self.output_dir / f"{candidate_stem}.capture.mkv",
                 chrome_audio=self.output_dir / f"{candidate_stem}.chrome.wav",
+                browser_capture=self.output_dir / f"{candidate_stem}.browser.webm",
+                microphone_audio=self.output_dir / f"{candidate_stem}.microphone.wav",
             )
 
         paths = build_paths(stem)

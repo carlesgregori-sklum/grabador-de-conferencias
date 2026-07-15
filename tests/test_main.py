@@ -13,7 +13,7 @@ from bizneo_recorder.app import build_recording_config, format_elapsed
 from bizneo_recorder.chrome_audio import ChromeAudioDiagnostic
 from bizneo_recorder.ffmpeg import DiagnosticResult
 from bizneo_recorder.main import resource_path, run_self_test
-from bizneo_recorder.models import Microphone
+from bizneo_recorder.models import CaptureMode, Microphone
 
 
 class FakeDiagnosticClient:
@@ -60,6 +60,7 @@ class MainTests(unittest.TestCase):
                             Microphone("Mic"),
                             resolution,
                             fps_label,
+                            "Tota la pantalla principal",
                         )
                         self.assertEqual((config.width, config.height), expected_size)
                         self.assertEqual(config.fps, expected_fps)
@@ -73,9 +74,11 @@ class MainTests(unittest.TestCase):
             Microphone("Mic"),
             "Full HD 1080p",
             "30 FPS",
+            "Una pestanya de Chrome",
         )
 
         self.assertEqual(config.microphone, Microphone("Mic"))
+        self.assertIs(config.capture_mode, CaptureMode.CHROME_TAB)
 
     def test_resource_path_uses_executable_directory_when_frozen(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

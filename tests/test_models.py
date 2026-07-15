@@ -6,16 +6,45 @@ from datetime import datetime
 from pathlib import Path
 
 from bizneo_recorder.models import (
+    CAPTURE_MODE_LABELS,
     RESOLUTION_PRESETS,
     SUPPORTED_FPS,
+    CaptureMode,
     Microphone,
     RecordingConfig,
     get_resolution_preset,
+    parse_capture_mode,
     parse_fps,
 )
 
 
 class RecordingQualityTests(unittest.TestCase):
+    def test_capture_labels_map_to_three_modes(self) -> None:
+        self.assertEqual(
+            tuple(CAPTURE_MODE_LABELS),
+            (
+                "Tota la pantalla principal",
+                "Una pantalla concreta",
+                "Una pestanya de Chrome",
+            ),
+        )
+        self.assertEqual(
+            parse_capture_mode("Tota la pantalla principal"),
+            CaptureMode.PRIMARY_SCREEN,
+        )
+        self.assertEqual(
+            parse_capture_mode("Una pantalla concreta"),
+            CaptureMode.SELECTED_MONITOR,
+        )
+        self.assertEqual(
+            parse_capture_mode("Una pestanya de Chrome"),
+            CaptureMode.CHROME_TAB,
+        )
+
+    def test_capture_mode_lookup_rejects_unknown_label(self) -> None:
+        with self.assertRaisesRegex(ValueError, "font de captura"):
+            parse_capture_mode("Una finestra")
+
     def test_supported_resolution_presets_are_720p_and_1080p(self) -> None:
         self.assertEqual(
             [(item.label, item.width, item.height) for item in RESOLUTION_PRESETS],
@@ -67,6 +96,19 @@ class RecordingConfigTests(unittest.TestCase):
                 paths.chrome_audio.name,
                 "Conference-2026-07-15-093000.chrome.wav",
             )
+            self.assertEqual(
+                paths.browser_capture.name,
+                "Conference-2026-07-15-093000.browser.webm",
+            )
+            self.assertEqual(
+                paths.microphone_audio.name,
+                "Conference-2026-07-15-093000.microphone.wav",
+            )
+
+    def test_config_defaults_to_primary_screen(self) -> None:
+        config = RecordingConfig(Path("videos"), chrome_process_id=321)
+
+        self.assertIs(config.capture_mode, CaptureMode.PRIMARY_SCREEN)
 
     def test_next_paths_avoids_existing_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

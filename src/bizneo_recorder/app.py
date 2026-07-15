@@ -15,6 +15,7 @@ from .models import (
     Microphone,
     RecordingConfig,
     get_resolution_preset,
+    parse_capture_mode,
     parse_fps,
 )
 from .processes import ProcessDiscoveryError, find_chrome_root
@@ -47,6 +48,7 @@ def build_recording_config(
     microphone: Microphone | None,
     resolution_label: str,
     fps_label: str,
+    capture_mode_label: str = "Tota la pantalla principal",
 ) -> RecordingConfig:
     if include_microphone and microphone is None:
         raise ValueError("activa i selecciona un micròfon o desactiva l'opció")
@@ -58,6 +60,7 @@ def build_recording_config(
         width=preset.width,
         height=preset.height,
         fps=parse_fps(fps_label),
+        capture_mode=parse_capture_mode(capture_mode_label),
     )
 
 
