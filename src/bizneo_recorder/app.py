@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import tkinter as tk
+from collections.abc import Callable
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -16,6 +17,7 @@ from .models import (
     get_resolution_preset,
     parse_fps,
 )
+from .processes import ProcessDiscoveryError, find_chrome_root
 from .recorder import Recorder, RecorderError, RecorderState
 
 
@@ -28,6 +30,7 @@ PRIMARY_ACTIVE = "#2444B8"
 DANGER = "#D92D20"
 DANGER_ACTIVE = "#B42318"
 SUCCESS = "#067647"
+WARNING = "#B54708"
 BORDER = "#D0D5DD"
 
 
@@ -38,15 +41,20 @@ def format_elapsed(seconds: float) -> str:
 
 
 def build_recording_config(
-    microphone: Microphone,
     output_dir: Path,
+    chrome_process_id: int,
+    include_microphone: bool,
+    microphone: Microphone | None,
     resolution_label: str,
     fps_label: str,
 ) -> RecordingConfig:
+    if include_microphone and microphone is None:
+        raise ValueError("activa i selecciona un micròfon o desactiva l'opció")
     preset = get_resolution_preset(resolution_label)
     return RecordingConfig(
-        microphone,
         output_dir,
+        chrome_process_id,
+        microphone=microphone if include_microphone else None,
         width=preset.width,
         height=preset.height,
         fps=parse_fps(fps_label),
@@ -54,27 +62,33 @@ def build_recording_config(
 
 
 class BizneoRecorderApp:
-    """Small, keyboard-friendly Tk interface for one recording at a time."""
+    """Minimal conference UI for full-screen video and Chrome-only audio."""
 
     def __init__(
         self,
         root: tk.Tk,
         client: FFmpegClient,
         recorder: Recorder,
+        chrome_finder: Callable[[], int | None] = find_chrome_root,
     ) -> None:
         self.root = root
         self.client = client
         self.recorder = recorder
-        self.output_dir = Path.home() / "Videos" / "Bizneo Recorder"
+        self.chrome_finder = chrome_finder
+        self.output_dir = Path.home() / "Videos" / "Conference Recorder"
+        self.chrome_process_id: int | None = None
         self.microphones: list[Microphone] = []
         self.started_at = 0.0
         self.current_video: Path | None = None
         self.close_after_stop = False
+        self.loading_microphones = False
 
-        self.status_var = tk.StringVar(value="Buscant micròfons…")
-        self.microphone_state_var = tk.StringVar(value="● Comprovant micròfon")
+        self.status_var = tk.StringVar(value="Comprovant Chrome…")
+        self.chrome_state_var = tk.StringVar(value="● Comprovant Chrome")
         self.elapsed_var = tk.StringVar(value="00:00")
+        self.include_microphone_var = tk.BooleanVar(value=False)
         self.microphone_var = tk.StringVar()
+        self.microphone_state_var = tk.StringVar(value="El micròfon està desactivat")
         self.resolution_var = tk.StringVar(value="Full HD 1080p")
         self.fps_var = tk.StringVar(value="30 FPS")
 
@@ -82,13 +96,13 @@ class BizneoRecorderApp:
         self._build_interface()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.bind("<Escape>", lambda _event: self._on_close())
-        self.refresh_microphones()
+        self.refresh_chrome()
 
     def _configure_window(self) -> None:
-        self.root.title("Bizneo Recorder")
-        self.root.geometry("620x625")
-        self.root.minsize(620, 625)
-        self.root.maxsize(620, 625)
+        self.root.title("Conference Recorder")
+        self.root.geometry("580x650")
+        self.root.minsize(580, 650)
+        self.root.maxsize(580, 650)
         self.root.configure(bg=BACKGROUND)
 
         style = ttk.Style(self.root)
@@ -101,7 +115,7 @@ class BizneoRecorderApp:
             bordercolor=BORDER,
             lightcolor=BORDER,
             darkcolor=BORDER,
-            padding=8,
+            padding=7,
             font=("Segoe UI", 10),
         )
 
@@ -109,18 +123,16 @@ class BizneoRecorderApp:
         container = tk.Frame(self.root, bg=BACKGROUND, padx=28, pady=24)
         container.pack(fill="both", expand=True)
 
-        header = tk.Frame(container, bg=BACKGROUND)
-        header.pack(fill="x")
         tk.Label(
-            header,
-            text="Bizneo Recorder",
+            container,
+            text="Conference Recorder",
             bg=BACKGROUND,
             fg=TEXT,
             font=("Segoe UI Semibold", 22),
         ).pack(anchor="w")
         tk.Label(
-            header,
-            text="Grava la pantalla i la teua veu en un MP4.",
+            container,
+            text="Grava tota la pantalla i l'àudio de Chrome en un MP4.",
             bg=BACKGROUND,
             fg=MUTED,
             font=("Segoe UI", 10),
@@ -131,21 +143,61 @@ class BizneoRecorderApp:
             bg=SURFACE,
             highlightbackground=BORDER,
             highlightthickness=1,
-            padx=22,
-            pady=20,
+            padx=20,
+            pady=18,
         )
         card.pack(fill="x")
 
-        tk.Label(
+        chrome_row = tk.Frame(card, bg=SURFACE)
+        chrome_row.pack(fill="x")
+        self.chrome_state_label = tk.Label(
+            chrome_row,
+            textvariable=self.chrome_state_var,
+            bg=SURFACE,
+            fg=MUTED,
+            font=("Segoe UI Semibold", 10),
+        )
+        self.chrome_state_label.pack(side="left")
+        self.refresh_chrome_button = tk.Button(
+            chrome_row,
+            text="Tornar a comprovar",
+            command=self.refresh_chrome,
+            bg=SURFACE,
+            fg=PRIMARY,
+            activebackground=SURFACE,
+            activeforeground=PRIMARY_ACTIVE,
+            relief="flat",
+            borderwidth=0,
+            padx=0,
+            cursor="hand2",
+            font=("Segoe UI Semibold", 9, "underline"),
+        )
+        self.refresh_chrome_button.pack(side="right")
+
+        separator = tk.Frame(card, bg="#EAECF0", height=1)
+        separator.pack(fill="x", pady=15)
+
+        self.microphone_toggle = tk.Checkbutton(
             card,
-            text="Micròfon",
+            text="Incloure el meu micròfon",
+            variable=self.include_microphone_var,
+            command=self._microphone_option_changed,
             bg=SURFACE,
             fg=TEXT,
+            activebackground=SURFACE,
+            activeforeground=TEXT,
+            selectcolor=SURFACE,
+            anchor="w",
+            relief="flat",
+            borderwidth=0,
+            cursor="hand2",
             font=("Segoe UI Semibold", 10),
-        ).pack(anchor="w")
+        )
+        self.microphone_toggle.pack(fill="x")
 
-        selector_row = tk.Frame(card, bg=SURFACE)
-        selector_row.pack(fill="x", pady=(7, 4))
+        self.microphone_panel = tk.Frame(card, bg=SURFACE)
+        selector_row = tk.Frame(self.microphone_panel, bg=SURFACE)
+        selector_row.pack(fill="x", pady=(8, 3))
         self.microphone_box = ttk.Combobox(
             selector_row,
             textvariable=self.microphone_var,
@@ -155,8 +207,7 @@ class BizneoRecorderApp:
         )
         self.microphone_box.pack(side="left", fill="x", expand=True)
         self.microphone_box.bind("<<ComboboxSelected>>", self._microphone_selected)
-
-        self.refresh_button = tk.Button(
+        self.refresh_microphone_button = tk.Button(
             selector_row,
             text="Actualitzar",
             command=self.refresh_microphones,
@@ -166,101 +217,62 @@ class BizneoRecorderApp:
             activeforeground=PRIMARY_ACTIVE,
             relief="flat",
             borderwidth=0,
-            padx=13,
-            pady=9,
+            padx=12,
+            pady=8,
             cursor="hand2",
             font=("Segoe UI Semibold", 9),
         )
-        self.refresh_button.pack(side="left", padx=(10, 0))
-
+        self.refresh_microphone_button.pack(side="left", padx=(9, 0))
         self.microphone_state_label = tk.Label(
-            card,
+            self.microphone_panel,
             textvariable=self.microphone_state_var,
             bg=SURFACE,
             fg=MUTED,
             font=("Segoe UI", 9),
         )
-        self.microphone_state_label.pack(anchor="w", pady=(2, 18))
+        self.microphone_state_label.pack(anchor="w")
 
-        tk.Label(
+        options_label = tk.Label(
             card,
-            text="Qualitat del vídeo",
-            bg=SURFACE,
-            fg=TEXT,
-            font=("Segoe UI Semibold", 10),
-        ).pack(anchor="w")
-
-        quality_row = tk.Frame(card, bg=SURFACE)
-        quality_row.pack(fill="x", pady=(7, 4))
-
-        resolution_column = tk.Frame(quality_row, bg=SURFACE)
-        resolution_column.pack(side="left", fill="x", expand=True)
-        tk.Label(
-            resolution_column,
-            text="Resolució",
+            text="Opcions de vídeo",
             bg=SURFACE,
             fg=MUTED,
-            font=("Segoe UI", 9),
-        ).pack(anchor="w", pady=(0, 4))
+            font=("Segoe UI Semibold", 9),
+        )
+        options_label.pack(anchor="w", pady=(18, 6))
+        quality_row = tk.Frame(card, bg=SURFACE)
+        quality_row.pack(fill="x")
         self.resolution_box = ttk.Combobox(
-            resolution_column,
+            quality_row,
             textvariable=self.resolution_var,
             values=[preset.label for preset in RESOLUTION_PRESETS],
             state="readonly",
             style="Recorder.TCombobox",
             font=("Segoe UI", 10),
         )
-        self.resolution_box.pack(fill="x")
-
-        fps_column = tk.Frame(quality_row, bg=SURFACE)
-        fps_column.pack(side="left", fill="x", expand=True, padx=(12, 0))
-        tk.Label(
-            fps_column,
-            text="Fluïdesa",
-            bg=SURFACE,
-            fg=MUTED,
-            font=("Segoe UI", 9),
-        ).pack(anchor="w", pady=(0, 4))
+        self.resolution_box.pack(side="left", fill="x", expand=True)
         self.fps_box = ttk.Combobox(
-            fps_column,
+            quality_row,
             textvariable=self.fps_var,
             values=[f"{fps} FPS" for fps in SUPPORTED_FPS],
             state="readonly",
             style="Recorder.TCombobox",
+            width=12,
             font=("Segoe UI", 10),
         )
-        self.fps_box.pack(fill="x")
+        self.fps_box.pack(side="left", padx=(10, 0))
 
         tk.Label(
             card,
-            text="60 FPS crea fitxers més grans i exigeix més a l'equip.",
+            text="Els vídeos es guarden en Vídeos\\Conference Recorder",
             bg=SURFACE,
             fg=MUTED,
             font=("Segoe UI", 9),
-        ).pack(anchor="w", pady=(2, 18))
+        ).pack(anchor="w", pady=(14, 0))
 
-        tk.Label(
-            card,
-            text="Els vídeos es guardaran en",
-            bg=SURFACE,
-            fg=MUTED,
-            font=("Segoe UI", 9),
-        ).pack(anchor="w")
-        tk.Label(
-            card,
-            text=str(self.output_dir),
-            bg=SURFACE,
-            fg=TEXT,
-            font=("Segoe UI", 9),
-            wraplength=520,
-            justify="left",
-        ).pack(anchor="w", pady=(2, 0))
-
-        recording_row = tk.Frame(container, bg=BACKGROUND)
-        recording_row.pack(fill="x", pady=(22, 10))
         self.record_button = tk.Button(
-            recording_row,
-            text="Començar gravació",
+            container,
+            text="Gravar conferència",
             command=self.toggle_recording,
             state="disabled",
             bg=PRIMARY,
@@ -270,104 +282,168 @@ class BizneoRecorderApp:
             activeforeground="white",
             relief="flat",
             borderwidth=0,
-            padx=22,
-            pady=13,
+            pady=14,
             cursor="hand2",
             font=("Segoe UI Semibold", 11),
         )
-        self.record_button.pack(side="left")
+        self.record_button.pack(fill="x", pady=(20, 10))
 
         self.elapsed_label = tk.Label(
-            recording_row,
+            container,
             textvariable=self.elapsed_var,
             bg=BACKGROUND,
             fg=TEXT,
             font=("Consolas", 20, "bold"),
         )
-        self.elapsed_label.pack(side="right")
-
+        self.elapsed_label.pack()
         self.status_label = tk.Label(
             container,
             textvariable=self.status_var,
             bg=BACKGROUND,
             fg=MUTED,
             font=("Segoe UI", 9),
-            anchor="w",
-            justify="left",
-            wraplength=560,
+            justify="center",
+            wraplength=510,
         )
-        self.status_label.pack(fill="x", pady=(2, 10))
-
+        self.status_label.pack(fill="x", pady=(3, 6))
         self.open_folder_button = tk.Button(
             container,
             text="Obrir carpeta de vídeos",
             command=self.open_output_folder,
-            state="disabled",
             bg=BACKGROUND,
             fg=PRIMARY,
             activebackground=BACKGROUND,
             activeforeground=PRIMARY_ACTIVE,
             relief="flat",
             borderwidth=0,
-            padx=0,
-            pady=4,
             cursor="hand2",
             font=("Segoe UI Semibold", 9, "underline"),
         )
-        self.open_folder_button.pack(anchor="w")
+        self.open_folder_button.pack()
 
-    def refresh_microphones(self) -> None:
+    def refresh_chrome(self) -> None:
         if self.recorder.state is not RecorderState.IDLE:
             return
-        self.refresh_button.configure(state="disabled")
-        self.record_button.configure(state="disabled")
-        self.microphone_state_var.set("● Comprovant micròfon")
-        self.microphone_state_label.configure(fg=MUTED)
-        self.status_var.set("Buscant micròfons disponibles…")
+        try:
+            self.chrome_process_id = self.chrome_finder()
+        except ProcessDiscoveryError as error:
+            self.chrome_process_id = None
+            self.chrome_state_var.set("● No s'ha pogut comprovar Chrome")
+            self.chrome_state_label.configure(fg=DANGER)
+            self.status_var.set(str(error))
+        else:
+            if self.chrome_process_id is None:
+                self.chrome_state_var.set("● Chrome no està obert")
+                self.chrome_state_label.configure(fg=WARNING)
+            else:
+                self.chrome_state_var.set("● Chrome detectat · àudio preparat")
+                self.chrome_state_label.configure(fg=SUCCESS)
+        self._update_ready_state()
+
+    def _microphone_option_changed(self) -> None:
+        if self.include_microphone_var.get():
+            if not self.microphone_panel.winfo_manager():
+                self.microphone_panel.pack(
+                    fill="x",
+                    after=self.microphone_toggle,
+                    pady=(2, 0),
+                )
+            if not self.microphones and not self.loading_microphones:
+                self.refresh_microphones()
+        else:
+            self.microphone_panel.pack_forget()
+            self.microphone_state_var.set("El micròfon està desactivat")
+        self._update_ready_state()
+
+    def refresh_microphones(self) -> None:
+        if self.recorder.state is not RecorderState.IDLE or self.loading_microphones:
+            return
+        self.loading_microphones = True
+        self.refresh_microphone_button.configure(state="disabled")
+        self.microphone_state_var.set("Comprovant micròfons…")
+        self._update_ready_state()
 
         def worker() -> None:
             try:
                 microphones = self.client.list_microphones()
             except FFmpegError as error:
-                self.root.after(0, lambda error=error: self._microphones_failed(error))
+                self._schedule_ui(lambda error=error: self._microphones_failed(error))
             else:
-                self.root.after(0, lambda: self._microphones_loaded(microphones))
+                self._schedule_ui(lambda: self._microphones_loaded(microphones))
 
         threading.Thread(target=worker, name="microphone-discovery", daemon=True).start()
 
-    def _microphones_loaded(self, microphones: list[Microphone]) -> None:
-        self.microphones = microphones
-        self.microphone_box.configure(values=[item.name for item in microphones])
-        self.refresh_button.configure(state="normal")
-        if not microphones:
-            self.microphone_var.set("")
-            self.microphone_state_var.set("● No s'ha detectat cap micròfon")
-            self.microphone_state_label.configure(fg=DANGER)
-            self.status_var.set(
-                "Connecta o activa un micròfon i revisa Configuració > Privacitat > Micròfon."
-            )
+    def _schedule_ui(self, callback: Callable[[], None]) -> None:
+        try:
+            self.root.after(0, callback)
+        except (RuntimeError, tk.TclError):
+            # The window can be destroyed while a short worker is finishing.
             return
 
-        self.microphone_box.current(0)
-        self.microphone_state_var.set("● Micròfon preparat")
-        self.microphone_state_label.configure(fg=SUCCESS)
-        self.status_var.set("Preparat. En començar, la finestra es minimitzarà automàticament.")
-        self.record_button.configure(state="normal")
+    def _microphones_loaded(self, microphones: list[Microphone]) -> None:
+        self.loading_microphones = False
+        self.microphones = microphones
+        self.microphone_box.configure(values=[item.name for item in microphones])
+        self.refresh_microphone_button.configure(state="normal")
+        if microphones:
+            self.microphone_box.current(0)
+            self.microphone_state_var.set("Micròfon preparat")
+            self.microphone_state_label.configure(fg=SUCCESS)
+        else:
+            self.microphone_var.set("")
+            self.microphone_state_var.set("No s'ha detectat cap micròfon")
+            self.microphone_state_label.configure(fg=DANGER)
+        self._update_ready_state()
 
     def _microphones_failed(self, error: Exception) -> None:
-        self.refresh_button.configure(state="normal")
-        self.microphone_state_var.set("● No s'ha pogut comprovar el micròfon")
+        self.loading_microphones = False
+        self.refresh_microphone_button.configure(state="normal")
+        self.microphone_state_var.set("No s'ha pogut comprovar el micròfon")
         self.microphone_state_label.configure(fg=DANGER)
         self.status_var.set(str(error))
-        messagebox.showerror("No es pot iniciar", str(error), parent=self.root)
+        self._update_ready_state()
 
     def _microphone_selected(self, _event: object = None) -> None:
-        self.microphone_state_var.set("● Micròfon preparat")
+        self.microphone_state_var.set("Micròfon preparat")
         self.microphone_state_label.configure(fg=SUCCESS)
+        self._update_ready_state()
+
+    def _selected_microphone(self) -> Microphone | None:
+        return next(
+            (item for item in self.microphones if item.name == self.microphone_var.get()),
+            None,
+        )
+
+    def _update_ready_state(self) -> None:
+        if self.recorder.state is not RecorderState.IDLE:
+            return
+        microphone_ready = (
+            not self.include_microphone_var.get()
+            or self._selected_microphone() is not None
+        )
+        ready = self.chrome_process_id is not None and microphone_ready
+        self.record_button.configure(state="normal" if ready else "disabled")
+        if self.chrome_process_id is None:
+            self.status_var.set("Obri Chrome amb la conferència i torna a comprovar.")
+        elif not microphone_ready:
+            self.status_var.set("Selecciona un micròfon o desactiva l'opció.")
+        else:
+            sources = "Chrome + micròfon" if self.include_microphone_var.get() else "Chrome"
+            self.status_var.set(
+                f"Preparat: pantalla completa · àudio de {sources}."
+            )
 
     def _set_quality_controls_state(self, state: str) -> None:
         self.resolution_box.configure(state=state)
         self.fps_box.configure(state=state)
+
+    def _set_idle_controls(self) -> None:
+        self.microphone_toggle.configure(state="normal")
+        self.refresh_chrome_button.configure(state="normal")
+        self._set_quality_controls_state("readonly")
+        self.microphone_box.configure(state="readonly")
+        self.refresh_microphone_button.configure(state="normal")
+        self._update_ready_state()
 
     def toggle_recording(self) -> None:
         if self.recorder.state is RecorderState.IDLE:
@@ -376,47 +452,43 @@ class BizneoRecorderApp:
             self._stop_recording()
 
     def _start_recording(self) -> None:
-        microphone = next(
-            (item for item in self.microphones if item.name == self.microphone_var.get()),
-            None,
-        )
-        if microphone is None:
+        self.refresh_chrome()
+        if self.chrome_process_id is None:
             messagebox.showwarning(
-                "Tria un micròfon",
-                "Selecciona un micròfon abans de començar.",
+                "Chrome no està obert",
+                "Obri Chrome amb la conferència abans de començar.",
                 parent=self.root,
             )
             return
-
+        microphone = self._selected_microphone()
         try:
             config = build_recording_config(
-                microphone,
                 self.output_dir,
+                self.chrome_process_id,
+                self.include_microphone_var.get(),
+                microphone,
                 self.resolution_var.get(),
                 self.fps_var.get(),
             )
         except ValueError as error:
-            messagebox.showerror(
-                "Qualitat no vàlida",
-                f"Revisa la resolució i els FPS seleccionats.\n\n{error}",
-                parent=self.root,
-            )
+            messagebox.showerror("Configuració no vàlida", str(error), parent=self.root)
             return
-        self.record_button.configure(state="disabled", text="Iniciant…")
+
+        self.record_button.configure(state="disabled", text="Preparant…")
+        self.microphone_toggle.configure(state="disabled")
+        self.refresh_chrome_button.configure(state="disabled")
         self.microphone_box.configure(state="disabled")
+        self.refresh_microphone_button.configure(state="disabled")
         self._set_quality_controls_state("disabled")
-        self.refresh_button.configure(state="disabled")
-        self.status_var.set(
-            f"Preparant la gravació {self.resolution_var.get()} · {self.fps_var.get()}…"
-        )
+        self.status_var.set("Preparant àudio de Chrome i captura de pantalla…")
 
         def worker() -> None:
             try:
                 video_path = self.recorder.start(config)
             except (RecorderError, OSError) as error:
-                self.root.after(0, lambda error=error: self._start_failed(error))
+                self._schedule_ui(lambda error=error: self._start_failed(error))
             else:
-                self.root.after(0, lambda: self._recording_started(video_path))
+                self._schedule_ui(lambda: self._recording_started(video_path))
 
         threading.Thread(target=worker, name="recording-start", daemon=True).start()
 
@@ -430,20 +502,20 @@ class BizneoRecorderApp:
             bg=DANGER,
             activebackground=DANGER_ACTIVE,
         )
-        self.status_var.set("Gravant pantalla i veu. Torna a esta finestra per finalitzar.")
+        microphone = " i micròfon" if self.include_microphone_var.get() else ""
+        self.status_var.set(
+            f"Gravant tota la pantalla, Chrome{microphone}. Torna ací per finalitzar."
+        )
         self.root.after(700, self.root.iconify)
         self._tick()
 
     def _start_failed(self, error: Exception) -> None:
         self.record_button.configure(
-            state="normal" if self.microphones else "disabled",
-            text="Començar gravació",
+            text="Gravar conferència",
             bg=PRIMARY,
             activebackground=PRIMARY_ACTIVE,
         )
-        self.microphone_box.configure(state="readonly")
-        self._set_quality_controls_state("readonly")
-        self.refresh_button.configure(state="normal")
+        self._set_idle_controls()
         self.status_var.set(str(error))
         messagebox.showerror("No s'ha pogut gravar", str(error), parent=self.root)
 
@@ -452,7 +524,7 @@ class BizneoRecorderApp:
             return
         self.elapsed_var.set(format_elapsed(time.monotonic() - self.started_at))
         if self.recorder.poll() is not None:
-            self.status_var.set("FFmpeg s'ha aturat; finalitzant el fitxer…")
+            self.status_var.set("Una captura s'ha aturat; protegint els temporals…")
             self._stop_recording()
             return
         self.root.after(250, self._tick)
@@ -463,46 +535,38 @@ class BizneoRecorderApp:
         self.root.deiconify()
         self.root.lift()
         self.record_button.configure(state="disabled", text="Finalitzant…")
-        self.status_var.set("Tancant el vídeo correctament. No tanques l'aplicació…")
+        self.status_var.set("Combinant vídeo i àudio. No tanques l'aplicació…")
 
         def worker() -> None:
             try:
                 video_path = self.recorder.stop()
             except RecorderError as error:
-                self.root.after(0, lambda error=error: self._stop_failed(error))
+                self._schedule_ui(lambda error=error: self._stop_failed(error))
             else:
-                self.root.after(0, lambda: self._recording_saved(video_path))
+                self._schedule_ui(lambda: self._recording_saved(video_path))
 
         threading.Thread(target=worker, name="recording-stop", daemon=True).start()
 
     def _recording_saved(self, video_path: Path) -> None:
         self.current_video = video_path
         self.record_button.configure(
-            state="normal",
-            text="Començar una altra gravació",
+            text="Gravar una altra conferència",
             bg=PRIMARY,
             activebackground=PRIMARY_ACTIVE,
         )
-        self.microphone_box.configure(state="readonly")
-        self._set_quality_controls_state("readonly")
-        self.refresh_button.configure(state="normal")
-        self.open_folder_button.configure(state="normal")
-        self.status_var.set(f"Vídeo guardat correctament: {video_path.name}")
+        self._set_idle_controls()
+        self.status_var.set(f"Vídeo guardat: {video_path.name}")
         if self.close_after_stop:
             self.root.destroy()
 
     def _stop_failed(self, error: Exception) -> None:
         self.record_button.configure(
-            state="normal",
-            text="Començar una altra gravació",
+            text="Tornar a intentar",
             bg=PRIMARY,
             activebackground=PRIMARY_ACTIVE,
         )
-        self.microphone_box.configure(state="readonly")
-        self._set_quality_controls_state("readonly")
-        self.refresh_button.configure(state="normal")
-        self.open_folder_button.configure(state="normal")
-        self.status_var.set("La gravació ha fallat; s'ha conservat el fitxer temporal.")
+        self._set_idle_controls()
+        self.status_var.set("La gravació ha fallat; s'han conservat els temporals.")
         messagebox.showerror("No s'ha pogut finalitzar", str(error), parent=self.root)
         if self.close_after_stop:
             self.root.destroy()
@@ -513,21 +577,19 @@ class BizneoRecorderApp:
 
     def _on_close(self) -> None:
         if self.recorder.state is RecorderState.RECORDING:
-            should_stop = messagebox.askyesno(
+            if messagebox.askyesno(
                 "Finalitzar la gravació?",
-                "Hi ha una gravació en marxa. Vols finalitzar-la, guardar-la i eixir?",
+                "Vols finalitzar-la, guardar-la i eixir?",
                 parent=self.root,
-            )
-            if should_stop:
+            ):
                 self.close_after_stop = True
                 self._stop_recording()
             return
         if self.recorder.state is RecorderState.STOPPING:
             messagebox.showinfo(
                 "Finalitzant vídeo",
-                "Espera uns segons mentre es guarda el vídeo.",
+                "Espera uns segons mentre es combina i es guarda.",
                 parent=self.root,
             )
             return
         self.root.destroy()
-
