@@ -23,27 +23,27 @@ class RecordingQualityTests(unittest.TestCase):
         self.assertEqual(
             tuple(CAPTURE_MODE_LABELS),
             (
-                "Tota la pantalla principal",
-                "Una pantalla concreta",
-                "Una pestanya de Chrome",
+                "Pantalla completa",
+                "Elegir pantalla",
+                "Pestaña de Chrome",
             ),
         )
         self.assertEqual(
-            parse_capture_mode("Tota la pantalla principal"),
+            parse_capture_mode("Pantalla completa"),
             CaptureMode.PRIMARY_SCREEN,
         )
         self.assertEqual(
-            parse_capture_mode("Una pantalla concreta"),
+            parse_capture_mode("Elegir pantalla"),
             CaptureMode.SELECTED_MONITOR,
         )
         self.assertEqual(
-            parse_capture_mode("Una pestanya de Chrome"),
+            parse_capture_mode("Pestaña de Chrome"),
             CaptureMode.CHROME_TAB,
         )
 
     def test_capture_mode_lookup_rejects_unknown_label(self) -> None:
-        with self.assertRaisesRegex(ValueError, "font de captura"):
-            parse_capture_mode("Una finestra")
+        with self.assertRaisesRegex(ValueError, "fuente de captura"):
+            parse_capture_mode("Una ventana")
 
     def test_supported_resolution_presets_are_720p_and_1080p(self) -> None:
         self.assertEqual(
@@ -59,7 +59,7 @@ class RecordingQualityTests(unittest.TestCase):
 
     def test_resolution_lookup_rejects_unsupported_label(self) -> None:
         self.assertEqual(get_resolution_preset("HD 720p").width, 1280)
-        with self.assertRaisesRegex(ValueError, "resolució"):
+        with self.assertRaisesRegex(ValueError, "resolución"):
             get_resolution_preset("4K")
 
     def test_parse_fps_accepts_only_supported_labels(self) -> None:
@@ -135,7 +135,7 @@ class RecordingConfigTests(unittest.TestCase):
 
     def test_config_rejects_invalid_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            with self.assertRaisesRegex(ValueError, "dimensions"):
+            with self.assertRaisesRegex(ValueError, "dimensiones"):
                 RecordingConfig(Path(directory), chrome_process_id=321, width=0)
 
 

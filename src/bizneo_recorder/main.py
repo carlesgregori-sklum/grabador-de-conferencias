@@ -49,14 +49,14 @@ def run_self_test(
         return 1
 
     print(
-        "H.264: correcte" if diagnostic.encoder_available else "H.264: no disponible",
+        "H.264: correcto" if diagnostic.encoder_available else "H.264: no disponible",
         file=output,
     )
     chrome_diagnostic = chrome_audio.diagnose()
     if chrome_diagnostic.supported:
-        print("Àudio de Chrome: correcte", file=output)
+        print("Audio de Chrome: correcto", file=output)
     else:
-        print(f"Àudio de Chrome: error — {chrome_diagnostic.detail}", file=output)
+        print(f"Audio de Chrome: error — {chrome_diagnostic.detail}", file=output)
 
     try:
         chrome_process_id = chrome_finder()
@@ -64,28 +64,28 @@ def run_self_test(
         print(f"Chrome: error — {error}", file=output)
     else:
         print(
-            "Chrome: detectat" if chrome_process_id else "Chrome: no està obert",
+            "Chrome: detectado" if chrome_process_id else "Chrome: no está abierto",
             file=output,
         )
 
     if diagnostic.microphones:
-        print("Micròfons opcionals detectats:", file=output)
+        print("Micrófonos opcionales detectados:", file=output)
         for microphone in diagnostic.microphones:
             print(f"- {microphone.name}", file=output)
     else:
-        print("Micròfons: no s'ha detectat cap micròfon (opcional)", file=output)
+        print("Micrófonos: no se ha detectado ningún micrófono (opcional)", file=output)
 
     return 0 if diagnostic.encoder_available and chrome_diagnostic.supported else 1
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Gravador portable de pantalla completa i àudio de Chrome"
+        description="Grabador portable de pantalla y audio de Chrome"
     )
     parser.add_argument(
         "--self-test",
         action="store_true",
-        help="comprova FFmpeg i l'àudio de Chrome sense obrir la finestra",
+        help="comprueba FFmpeg y el audio de Chrome sin abrir la ventana",
     )
     args = parser.parse_args(argv)
 

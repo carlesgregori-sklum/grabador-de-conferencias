@@ -41,9 +41,9 @@ class CaptureMode(str, Enum):
 
 
 CAPTURE_MODE_LABELS: dict[str, CaptureMode] = {
-    "Tota la pantalla principal": CaptureMode.PRIMARY_SCREEN,
-    "Una pantalla concreta": CaptureMode.SELECTED_MONITOR,
-    "Una pestanya de Chrome": CaptureMode.CHROME_TAB,
+    "Pantalla completa": CaptureMode.PRIMARY_SCREEN,
+    "Elegir pantalla": CaptureMode.SELECTED_MONITOR,
+    "Pestaña de Chrome": CaptureMode.CHROME_TAB,
 }
 
 
@@ -51,7 +51,7 @@ def get_resolution_preset(label: str) -> ResolutionPreset:
     for preset in RESOLUTION_PRESETS:
         if preset.label == label:
             return preset
-    raise ValueError(f"resolució no admesa: {label!r}")
+    raise ValueError(f"resolución no admitida: {label!r}")
 
 
 def parse_fps(label: str) -> int:
@@ -59,14 +59,14 @@ def parse_fps(label: str) -> int:
     try:
         return labels[label]
     except KeyError as error:
-        raise ValueError(f"FPS no admesos: {label!r}") from error
+        raise ValueError(f"FPS no admitidos: {label!r}") from error
 
 
 def parse_capture_mode(label: str) -> CaptureMode:
     try:
         return CAPTURE_MODE_LABELS[label]
     except KeyError as error:
-        raise ValueError(f"font de captura no admesa: {label!r}") from error
+        raise ValueError(f"fuente de captura no admitida: {label!r}") from error
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,11 +104,11 @@ class RecordingConfig:
 
     def __post_init__(self) -> None:
         if self.chrome_process_id <= 0:
-            raise ValueError("el PID de Chrome ha de ser positiu")
+            raise ValueError("el PID de Chrome debe ser positivo")
         if self.width <= 0 or self.height <= 0:
-            raise ValueError("recording dimensions must be positive")
+            raise ValueError("las dimensiones de grabación deben ser positivas")
         if self.fps <= 0:
-            raise ValueError("recording frame rate must be positive")
+            raise ValueError("la frecuencia de grabación debe ser positiva")
         object.__setattr__(self, "output_dir", Path(self.output_dir))
 
     def next_paths(self, now: datetime | None = None) -> RecordingPaths:

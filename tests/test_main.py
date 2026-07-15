@@ -64,7 +64,7 @@ class MainTests(unittest.TestCase):
                             Microphone("Mic"),
                             resolution,
                             fps_label,
-                            "Tota la pantalla principal",
+                            "Pantalla completa",
                         )
                         self.assertEqual((config.width, config.height), expected_size)
                         self.assertEqual(config.fps, expected_fps)
@@ -78,7 +78,7 @@ class MainTests(unittest.TestCase):
             Microphone("Mic"),
             "Full HD 1080p",
             "30 FPS",
-            "Una pestanya de Chrome",
+            "Pestaña de Chrome",
         )
 
         self.assertEqual(config.microphone, Microphone("Mic"))
@@ -116,13 +116,13 @@ class MainTests(unittest.TestCase):
         )
 
         self.assertEqual(exit_code, 0)
-        self.assertIn("cap micròfon", output.getvalue())
-        self.assertIn("Chrome: no està obert", output.getvalue())
+        self.assertIn("ningún micrófono", output.getvalue())
+        self.assertIn("Chrome: no está abierto", output.getvalue())
 
     def test_self_test_reports_encoder_chrome_and_microphones(self) -> None:
         output = io.StringIO()
         client = FakeDiagnosticClient(
-            DiagnosticResult(True, (Microphone("Micròfon integrat"),))
+            DiagnosticResult(True, (Microphone("Micrófono integrado"),))
         )
 
         exit_code = run_self_test(
@@ -133,9 +133,9 @@ class MainTests(unittest.TestCase):
         )
 
         self.assertEqual(exit_code, 0)
-        self.assertIn("H.264: correcte", output.getvalue())
-        self.assertIn("Micròfon integrat", output.getvalue())
-        self.assertIn("Chrome: detectat", output.getvalue())
+        self.assertIn("H.264: correcto", output.getvalue())
+        self.assertIn("Micrófono integrado", output.getvalue())
+        self.assertIn("Chrome: detectado", output.getvalue())
 
     def test_self_test_fails_when_process_loopback_is_unavailable(self) -> None:
         output = io.StringIO()
@@ -148,7 +148,7 @@ class MainTests(unittest.TestCase):
         )
 
         self.assertEqual(exit_code, 1)
-        self.assertIn("Àudio de Chrome: error", output.getvalue())
+        self.assertIn("Audio de Chrome: error", output.getvalue())
 
 
 if __name__ == "__main__":

@@ -67,7 +67,7 @@ def build_recording_config(
     microphone: Microphone | None,
     resolution_label: str,
     fps_label: str,
-    capture_mode_label: str = "Tota la pantalla principal",
+    capture_mode_label: str = "Pantalla completa",
 ) -> RecordingConfig:
     if include_microphone and microphone is None:
         raise ValueError("activa i selecciona un micròfon o desactiva l'opció")
