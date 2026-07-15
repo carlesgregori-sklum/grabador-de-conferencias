@@ -35,7 +35,7 @@ Grabador de conferencias
 │   ├── models.py                       Modos, configuración y rutas
 │   ├── processes.py                    Árbol y ejecutable de Chrome
 │   └── recorder.py                     Estado y propiedad de recursos
-└── tests/                               86 pruebas Python, helper, UI y build
+└── tests/                               87 pruebas Python, helper, UI y build
 ```
 
 `work/` contiene compilaciones y muestras temporales. `outputs/` contiene el directorio portable y el ZIP. Ambas carpetas están ignoradas por Git y se regeneran.
@@ -55,7 +55,7 @@ app.py ── actualiza estado ──► ui.py / widgets Canvas
 
 Los widgets animados no poseen recursos de captura y no ejecutan trabajo bloqueante. Cada bucle usa `after`, conserva un único callback y lo cancela al destruirse. Las tarjetas ofrecen foco, teclado, marca y borde; la selección no depende solo del color.
 
-`app.py` mantiene los estados de producto `LISTO`, preparación, grabación, guardado y error. Durante una sesión bloquea fuente, micrófono, calidad y carpeta sin bloquear el hilo principal.
+`app.py` mantiene los estados de producto `LISTO`, preparación, grabación, guardado y error. Durante una sesión bloquea fuente, micrófono, calidad y carpeta sin bloquear el hilo principal. La ventana parte de una altura compacta de 810 px y anima su expansión a 880 px cuando aparecen los controles del micrófono, de modo que el CTA y el estado inferior nunca quedan recortados.
 
 ## Flujos de grabación
 

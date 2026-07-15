@@ -65,6 +65,8 @@ CAPTURE_DETAILS: dict[CaptureMode, tuple[str, str]] = {
     CaptureMode.SELECTED_MONITOR: ("Elige un monitor", "screen"),
     CaptureMode.CHROME_TAB: ("Audio de la pestaña", "tab"),
 }
+COMPACT_WINDOW_HEIGHT = 810
+MICROPHONE_WINDOW_HEIGHT = 880
 
 
 def format_elapsed(seconds: float) -> str:
@@ -119,6 +121,8 @@ class BizneoRecorderApp:
         self.current_video: Path | None = None
         self.close_after_stop = False
         self.loading_microphones = False
+        self.target_window_height = COMPACT_WINDOW_HEIGHT
+        self._resize_job: str | None = None
 
         self.status_var = tk.StringVar(value="Comprobando Chrome…")
         self.hero_status_var = tk.StringVar(value="COMPROBANDO CHROME")
@@ -145,14 +149,14 @@ class BizneoRecorderApp:
     def _configure_window(self) -> None:
         self.root.title("Grabador de conferencias")
         width = 920
-        height = 900
+        height = COMPACT_WINDOW_HEIGHT
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         left = max(0, (screen_width - width) // 2)
         top = max(0, (screen_height - height) // 2 - 8)
         self.root.geometry(f"{width}x{height}+{left}+{top}")
-        self.root.minsize(900, 860)
-        self.root.maxsize(1040, 980)
+        self.root.minsize(900, COMPACT_WINDOW_HEIGHT)
+        self.root.maxsize(1040, MICROPHONE_WINDOW_HEIGHT)
         self.root.configure(bg=BACKGROUND)
 
         style = ttk.Style(self.root)
@@ -559,10 +563,41 @@ class BizneoRecorderApp:
                 )
             if not self.microphones and not self.loading_microphones:
                 self.refresh_microphones()
+            self._animate_window_height(MICROPHONE_WINDOW_HEIGHT)
         else:
             self.microphone_panel.pack_forget()
             self.microphone_state_var.set("El micrófono está desactivado")
+            self._animate_window_height(COMPACT_WINDOW_HEIGHT)
         self._update_ready_state()
+
+    def _animate_window_height(self, target_height: int) -> None:
+        """Resize the window smoothly when optional microphone controls appear."""
+        self.target_window_height = target_height
+        if self._resize_job is not None:
+            try:
+                self.root.after_cancel(self._resize_job)
+            except tk.TclError:
+                pass
+            self._resize_job = None
+
+        def step() -> None:
+            try:
+                current_height = self.root.winfo_height()
+                delta = self.target_window_height - current_height
+                if abs(delta) <= 2:
+                    self.root.geometry(
+                        f"{self.root.winfo_width()}x{self.target_window_height}"
+                    )
+                    self._resize_job = None
+                    return
+                movement = max(2, round(abs(delta) * 0.34))
+                next_height = current_height + (movement if delta > 0 else -movement)
+                self.root.geometry(f"{self.root.winfo_width()}x{next_height}")
+                self._resize_job = self.root.after(14, step)
+            except tk.TclError:
+                self._resize_job = None
+
+        step()
 
     def refresh_microphones(self) -> None:
         if self.recorder.state is not RecorderState.IDLE or self.loading_microphones:

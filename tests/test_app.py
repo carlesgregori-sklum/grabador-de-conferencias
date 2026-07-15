@@ -48,6 +48,9 @@ class ConferenceRecorderUiTests(unittest.TestCase):
         self.assertEqual(len(app.capture_mode_cards), len(CAPTURE_MODE_LABELS))
         self.assertTrue(app.capture_mode_cards["Pantalla completa"].selected)
         self.assertEqual(app.hero_status_var.get(), "LISTO PARA GRABAR")
+        self.assertEqual(self.root.minsize(), (900, 810))
+        self.assertEqual(self.root.maxsize(), (1040, 880))
+        self.assertEqual(app.target_window_height, 810)
 
     def test_microphone_panel_is_shown_only_when_option_is_enabled(self) -> None:
         app = BizneoRecorderApp(
@@ -62,6 +65,13 @@ class ConferenceRecorderUiTests(unittest.TestCase):
         self.root.update_idletasks()
 
         self.assertEqual(app.microphone_panel.winfo_manager(), "pack")
+        self.assertEqual(app.target_window_height, 880)
+
+        app.include_microphone_var.set(False)
+        app._microphone_option_changed()
+
+        self.assertEqual(app.microphone_panel.winfo_manager(), "")
+        self.assertEqual(app.target_window_height, 810)
 
     def test_capture_source_changes_primary_action_and_help(self) -> None:
         app = BizneoRecorderApp(

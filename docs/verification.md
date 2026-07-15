@@ -1,54 +1,50 @@
-# Verificació de Conference Recorder
+# Verificación de Grabador de conferencias
 
-Data: 15 de juliol de 2026
+Fecha: 15 de julio de 2026
 
-Versió: 2.1.0
+Versión: 3.0.0
 
-Entorn: Windows 11 x64, pantalla principal 1920×1080
+Entorno: Windows 11 x64, pantalla principal 1920×1080
 
-## Resultats automatitzats
+## Resultados automatizados
 
-- `python -m unittest discover -s tests -t . -v`: 76 proves correctes.
-- `python -m ruff check src tests scripts`: cap error.
-- `python -m compileall -q src tests scripts`: compilació correcta.
-- Sintaxi de `scripts/build-portable.ps1`: correcta.
-- 12 proves del pont loopback: token, superfície, àudio de pestanya, ordenació, reintent idempotent, límit de fragment, inici, parada, error i asset.
-- Helper C# x64: `Process loopback: supported`, callback COM àgil i PCM 44,1 kHz estèreo de 16 bits.
-- `scripts/build-portable.ps1`: construcció correcta amb PyInstaller 6.21.0 en mode `onedir`.
-- `scripts/build-portable.ps1 -ValidateOnly`: executable, runtime, asset HTML, FFmpeg, helper, llicència, avís i guia presents.
-- L’asset empaquetat conté la notificació `navigator.sendBeacon` usada quan es tanca el selector.
+- `python -m unittest discover -s tests -t . -v`: 87 pruebas correctas y 0 fallos.
+- `python -m ruff check src tests scripts`: sin errores.
+- `python -m compileall -q src tests scripts`: compilación correcta.
+- Sintaxis de `scripts/build-portable.ps1`: correcta.
+- Las 12 pruebas del puente local cubren token, superficie, audio de pestaña, orden de fragmentos, reintento idempotente, límite de tamaño, inicio, parada, error y asset empaquetado.
+- El helper C# x64 confirma Process Loopback, callback COM ágil y PCM 44,1 kHz estéreo de 16 bits.
+- `scripts/build-portable.ps1`: construcción correcta con PyInstaller 6.21.0 en modo `onedir`.
+- `scripts/build-portable.ps1 -ValidateOnly`: ejecutable, runtime, asset HTML, FFmpeg, helper, licencia, aviso y guía presentes.
+- Autodiagnóstico del ejecutable compilado: código de salida 0.
 
-## Integració de vídeo i àudio
+Las pruebas de `ffmpeg.py` y `recorder.py` verifican las órdenes y el ciclo de recursos para pantalla completa, monitor elegido y pestaña de Chrome, con y sin micrófono. No se capturó contenido real del usuario durante esta verificación.
 
-S’han generat fonts audiovisuals sintètiques, sense capturar dades de l’usuari, i s’han passat per les ordres FFmpeg reals de la versió 2.1.0:
+## Revisión visual e interacción
 
-- Monitor seleccionat simulat: WebM de vídeo + WAV de Chrome + WAV de micròfon.
-- Pestanya simulada: WebM amb vídeo i àudio de pestanya, sense helper d’àudio global.
-- Els dos resultats són MP4 de 2,000 segons, H.264 1280×720 a 30 FPS i AAC.
-- `scripts/verify-recording.ps1` ha validat exactament un stream de vídeo i un d’àudio en cada fitxer.
+Se abrió y manipuló el `.exe` generado, no una ejecución desde el código fuente:
 
-El diàleg natiu de compartició de Chrome requereix una elecció humana per disseny del navegador. No s’ha acceptat automàticament cap permís ni s’ha gravat una pantalla o pestanya real de l’usuari durant esta verificació.
+- Estado inicial: ventana de 922×842 px, Chrome detectado, pantalla completa seleccionada, micrófono desactivado, Full HD 1080p y 30 FPS.
+- Micrófono activo: expansión animada a 922×912 px; selector de dispositivo, estado **Micrófono preparado**, calidad, carpeta, CTA y pie permanecen visibles sin recortes.
+- Pestaña de Chrome: selección visual, ayuda contextual, resumen inferior y CTA cambian a **Elegir pestaña y grabar**.
+- Se comprobaron contraste, jerarquía, espaciado, foco visual, estados activos y movimiento del orbe y de la onda.
+- La implementación conserva la composición, el grafito, el coral y el violeta de `docs/design/recorder-ui-concept.png`, adaptados a una ventana de escritorio más compacta.
 
-## Revisions visuals
+El diálogo nativo de Chrome exige una elección humana por diseño del navegador. No se aceptó automáticamente ningún permiso ni se grabó una pantalla o pestaña real.
 
-- Arrancada neta del portable sense diàlegs d’error.
-- Finestra de 582×822 píxels sense retalls ni scroll.
-- Chrome detectat, micròfon desactivat, 1080p i 30 FPS com a estat inicial.
-- Els tres modes són visibles alhora i el botó principal indica **Gravar pantalla principal**.
-- La pàgina auxiliar de pestanya conserva la mateixa jerarquia visual, instruïx sobre **Compartir també l’àudio** i mostra estat accessible.
-- Controls, textos d’ajuda, contrast, focus i jerarquia són coherents amb la UI existent.
+## Integridad del paquete
 
-## Integritat del paquet
+- Fuente del build Windows de FFmpeg: `https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip`.
+- SHA-256 del archivo de FFmpeg: `DB580001CAA24AC104C8CB856CD113A87B0A443F7BDF47D8C12B1D740584A2EC`.
+- ZIP final: `Grabador-de-conferencias-Portable.zip`.
+- Tamaño: 48.281.739 bytes.
+- Entradas del ZIP: 955.
+- SHA-256: `E4ACE8A001C0FB672681E967F5B6D820439EF8CEE0EB648A1234E2685D41CF02`.
 
-- Font del build Windows de FFmpeg: `https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip`.
-- SHA-256 de l’arxiu FFmpeg: `DB580001CAA24AC104C8CB856CD113A87B0A443F7BDF47D8C12B1D740584A2EC`.
-- ZIP final: 48.234.865 bytes.
-- SHA-256 de `Conference-Recorder-Portable.zip`: `3533D973752D13631BAAB0A922EDB8B6BA483060CE1DA770B7F6D74A4683C8FE`.
+## Limitaciones conocidas
 
-## Limitacions conegudes
-
-- Windows 10 build 20348 o posterior.
-- Chrome ha d’estar obert abans de començar i continuar obert durant la captura.
-- La pestanya necessita **Compartir també l’àudio**.
-- No hi ha mode de finestra individual; les opcions són pantalla principal, monitor complet o pestanya.
-- El paquet no té signatura comercial de codi.
+- Requiere Windows 10 build 20348 o posterior.
+- Chrome debe estar abierto antes de comenzar y continuar abierto durante la captura.
+- En una pestaña hay que activar **Compartir también el audio** en el selector de Chrome.
+- No existe modo de ventana individual; las opciones son pantalla principal, monitor completo o pestaña.
+- El paquete no tiene firma comercial de código y Windows puede mostrar SmartScreen.
