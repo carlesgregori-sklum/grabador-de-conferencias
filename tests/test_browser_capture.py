@@ -47,6 +47,16 @@ class BrowserCaptureBridgeTests(unittest.TestCase):
         self.assertIn("error instanceof RetryableSelectionError", page)
         self.assertIn('addEventListener("beforeunload"', page)
         self.assertIn("navigator.sendBeacon", page)
+        self.assertIn('<html lang="es">', page)
+        self.assertIn("--background: #0b0c10", page)
+        self.assertIn("@keyframes orbit", page)
+        self.assertIn("prefers-reduced-motion", page)
+        self.assertIn('"Seleccionar pestaña"', page)
+        self.assertIn("Compartir también el audio", page)
+        self.assertNotIn("pestanya", page.casefold())
+        self.assertNotIn("gravació", page.casefold())
+        self.assertNotIn("selecció cancel·lada", page.casefold())
+        self.assertNotIn("selecció tancada", page.casefold())
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -259,12 +269,12 @@ class BrowserCaptureBridgeTests(unittest.TestCase):
         self.post_json(
             bridge,
             "/api/test-token/error",
-            {"message": "Selecció cancel·lada."},
+            {"message": "Selección cancelada."},
         )
 
-        with self.assertRaisesRegex(BrowserCaptureError, "cancel·lada"):
+        with self.assertRaisesRegex(BrowserCaptureError, "cancelada"):
             bridge.wait_ready(timeout=1)
-        self.assertEqual(bridge.poll(), "Selecció cancel·lada.")
+        self.assertEqual(bridge.poll(), "Selección cancelada.")
 
 
 if __name__ == "__main__":

@@ -1,75 +1,275 @@
 <!doctype html>
-<html lang="ca">
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Seleccionar font · Conference Recorder</title>
+  <title>Elegir fuente · Grabador de conferencias</title>
   <style>
-    :root { color-scheme: light; font-family: "Segoe UI", sans-serif; }
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      --background: #0b0c10;
+      --surface: #151720;
+      --surface-raised: #1b1e29;
+      --border: #2a2e3a;
+      --text: #f7f7fa;
+      --muted: #9ca3b5;
+      --coral: #ff5a5f;
+      --violet: #8b5cf6;
+      --green: #55e6a5;
+      --amber: #f6b94a;
+    }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
       display: grid;
       place-items: center;
-      background: #f4f6fa;
-      color: #172033;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 12%, rgb(139 92 246 / 10%), transparent 32%),
+        radial-gradient(circle at 85% 82%, rgb(255 90 95 / 9%), transparent 34%),
+        var(--background);
+      color: var(--text);
+    }
+    body::before {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      content: "";
+      opacity: .18;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.15'/%3E%3C/svg%3E");
     }
     main {
-      width: min(460px, calc(100vw - 32px));
-      padding: 32px;
-      border: 1px solid #d0d5dd;
-      border-radius: 14px;
-      background: #fff;
-      box-shadow: 0 16px 40px rgb(23 32 51 / 10%);
+      position: relative;
+      width: min(560px, calc(100vw - 32px));
+      padding: 24px 28px 28px;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: rgb(21 23 32 / 94%);
+      box-shadow: 0 28px 80px rgb(0 0 0 / 42%);
     }
-    .mark {
-      width: 40px;
-      height: 40px;
-      display: grid;
-      place-items: center;
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       margin-bottom: 18px;
-      border-radius: 10px;
-      background: #e8edff;
-      color: #3155d9;
-      font-size: 21px;
     }
-    h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.25; }
-    p { margin: 0 0 22px; color: #667085; line-height: 1.5; }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .brand-mark {
+      position: relative;
+      width: 30px;
+      height: 30px;
+      border: 2px solid var(--coral);
+      border-radius: 50%;
+    }
+    .brand-mark::after {
+      position: absolute;
+      inset: 7px;
+      border-radius: 50%;
+      background: var(--coral);
+      content: "";
+    }
+    .local-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .local-badge::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 12px rgb(85 230 165 / 55%);
+      content: "";
+    }
+    .hero { text-align: center; }
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--coral);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .16em;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(27px, 6vw, 38px);
+      line-height: 1.12;
+      letter-spacing: -.035em;
+    }
+    #instructions {
+      max-width: 440px;
+      margin: 8px auto 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .visual {
+      position: relative;
+      width: 360px;
+      max-width: 100%;
+      height: 156px;
+      margin: 4px auto;
+    }
+    .core,
+    .ring,
+    .orbit {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+    }
+    .core {
+      z-index: 3;
+      width: 38px;
+      height: 38px;
+      background: var(--coral);
+      box-shadow: 0 0 38px rgb(255 90 95 / 38%);
+      animation: breathe 2.8s ease-in-out infinite;
+    }
+    .ring {
+      z-index: 2;
+      width: 94px;
+      height: 94px;
+      border: 2px solid var(--coral);
+      box-shadow: inset 0 0 24px rgb(255 90 95 / 10%), 0 0 24px rgb(255 90 95 / 12%);
+    }
+    .orbit {
+      width: 330px;
+      height: 74px;
+      border: 2px solid rgb(255 90 95 / 52%);
+      transform: translate(-50%, -50%) rotate(-9deg);
+      animation: orbit 8s linear infinite;
+    }
+    .orbit.secondary {
+      width: 280px;
+      height: 104px;
+      border-color: rgb(139 92 246 / 55%);
+      transform: translate(-50%, -50%) rotate(11deg);
+      animation-duration: 11s;
+      animation-direction: reverse;
+    }
+    .orbit::after {
+      position: absolute;
+      top: 50%;
+      right: -5px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--coral);
+      box-shadow: 0 0 15px currentColor;
+      content: "";
+    }
+    .orbit.secondary::after { background: var(--violet); }
+    .tip {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin: 0 0 14px;
+      padding: 13px 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-raised);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      text-align: left;
+    }
+    .tip-mark {
+      display: grid;
+      flex: 0 0 auto;
+      width: 25px;
+      height: 25px;
+      place-items: center;
+      border-radius: 8px;
+      background: rgb(139 92 246 / 16%);
+      color: #bca7ff;
+      font-weight: 700;
+    }
     button {
       width: 100%;
-      min-height: 48px;
-      border: 0;
-      border-radius: 8px;
-      background: #3155d9;
-      color: #fff;
+      min-height: 54px;
+      border: 1px solid rgb(255 255 255 / 18%);
+      border-radius: 15px;
+      background: var(--coral);
+      box-shadow: 0 12px 30px rgb(255 90 95 / 22%);
+      color: var(--text);
       font: inherit;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
+      transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
     }
-    button:hover { background: #2444b8; }
-    button:focus-visible { outline: 3px solid #9db0ff; outline-offset: 2px; }
-    button:disabled { cursor: wait; opacity: .65; }
+    button:hover {
+      filter: brightness(1.06);
+      box-shadow: 0 14px 34px rgb(255 90 95 / 30%);
+      transform: translateY(-1px);
+    }
+    button:active { transform: translateY(1px) scale(.995); }
+    button:focus-visible { outline: 3px solid var(--violet); outline-offset: 3px; }
+    button:disabled { cursor: wait; filter: saturate(.45); opacity: .68; transform: none; }
     #status {
-      min-height: 48px;
-      margin: 18px 0 0;
-      padding: 12px 14px;
-      border-radius: 8px;
-      background: #f7f8fa;
-      color: #475467;
-      font-size: 14px;
+      min-height: 42px;
+      margin: 12px 0 0;
+      padding: 10px 12px;
+      border-radius: 11px;
+      background: rgb(255 255 255 / 4%);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: center;
     }
-    #status.error { background: #fff1f0; color: #b42318; }
-    #status.success { background: #ecfdf3; color: #067647; }
+    #status.error { background: rgb(255 90 95 / 10%); color: #ff9ca0; }
+    #status.success { background: rgb(85 230 165 / 9%); color: var(--green); }
+    @keyframes orbit {
+      from { transform: translate(-50%, -50%) rotate(-9deg); }
+      to { transform: translate(-50%, -50%) rotate(351deg); }
+    }
+    @keyframes breathe {
+      0%, 100% { transform: translate(-50%, -50%) scale(.94); }
+      50% { transform: translate(-50%, -50%) scale(1.08); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .001ms !important;
+      }
+    }
   </style>
 </head>
 <body>
   <main>
-    <div class="mark" aria-hidden="true">◉</div>
-    <h1 id="title">Seleccionar font</h1>
-    <p id="instructions"></p>
+    <header>
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Grabador de conferencias</div>
+      <div class="local-badge">Conexión local</div>
+    </header>
+    <section class="hero">
+      <p class="eyebrow">ÚLTIMO PASO</p>
+      <h1 id="title">Seleccionar fuente</h1>
+      <p id="instructions"></p>
+      <div class="visual" aria-hidden="true">
+        <div class="orbit"></div>
+        <div class="orbit secondary"></div>
+        <div class="ring"></div>
+        <div class="core"></div>
+      </div>
+    </section>
+    <div class="tip"><span class="tip-mark">i</span><span id="tip-text"></span></div>
     <button id="select" type="button">Seleccionar</button>
-    <div id="status" role="status" aria-live="polite">Preparat per seleccionar.</div>
+    <div id="status" role="status" aria-live="polite">Todo preparado para seleccionar.</div>
   </main>
   <script>
     "use strict";
@@ -79,6 +279,7 @@
     const modeIsTab = config.mode === "tab";
     const title = document.querySelector("#title");
     const instructions = document.querySelector("#instructions");
+    const tipText = document.querySelector("#tip-text");
     const selectButton = document.querySelector("#select");
     const statusBox = document.querySelector("#status");
 
@@ -91,11 +292,14 @@
 
     class RetryableSelectionError extends Error {}
 
-    title.textContent = modeIsTab ? "Seleccionar pestanya" : "Seleccionar pantalla";
-    selectButton.textContent = modeIsTab ? "Triar pestanya en Chrome" : "Triar pantalla en Chrome";
+    title.textContent = modeIsTab ? "Seleccionar pestaña" : "Seleccionar pantalla";
+    selectButton.textContent = modeIsTab ? "Elegir pestaña en Chrome" : "Elegir pantalla en Chrome";
     instructions.textContent = modeIsTab
-      ? "En el selector, entra en Pestanya de Chrome i activa Compartir també l’àudio."
-      : "En el selector, entra en Pantalla completa i tria el monitor que vols gravar.";
+      ? "Chrome te mostrará las pestañas abiertas. Elige la conferencia que quieres grabar."
+      : "Chrome te mostrará tus pantallas. Elige el monitor completo que quieres grabar.";
+    tipText.textContent = modeIsTab
+      ? "En el selector, entra en Pestaña de Chrome y activa Compartir también el audio."
+      : "En el selector, entra en Pantalla completa. No elijas una ventana ni una pestaña.";
 
     function setStatus(message, kind = "") {
       statusBox.textContent = message;
@@ -176,7 +380,7 @@
         try {
           await uploadChain;
           await postJson("complete");
-          setStatus("Gravació enviada. Ja pots tancar esta finestra.", "success");
+          setStatus("Grabación enviada. Ya puedes cerrar esta ventana.", "success");
         } catch (error) {
           await reportError(error);
         } finally {
@@ -187,7 +391,7 @@
 
       recorder.start(1000);
       await postJson("started");
-      setStatus("Gravant. Torna a Conference Recorder per finalitzar.", "success");
+      setStatus("Grabando. Vuelve al Grabador de conferencias para finalizar.", "success");
     }
 
     function stopRecording() {
@@ -215,7 +419,7 @@
           if (payload.command === "abort") {
             stopping = true;
             stopTracks();
-            setStatus("Selecció tancada. Ja pots tancar esta finestra.");
+            setStatus("Selección cerrada. Ya puedes cerrar esta ventana.");
             return;
           }
         } catch (error) {
@@ -229,7 +433,7 @@
 
     async function selectSource() {
       selectButton.disabled = true;
-      setStatus("Esperant la selecció de Chrome…");
+      setStatus("Esperando la selección de Chrome…");
       try {
         stream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -252,13 +456,13 @@
           stopTracks();
           stream = null;
           throw new RetryableSelectionError(modeIsTab
-            ? "Has de triar una pestanya de Chrome, no una pantalla o finestra."
-            : "Has de triar una pantalla completa, no una finestra o pestanya.");
+            ? "Debes elegir una pestaña de Chrome, no una pantalla o ventana."
+            : "Debes elegir una pantalla completa, no una ventana o pestaña.");
         }
         if (modeIsTab && audioTracks.length === 0) {
           stopTracks();
           stream = null;
-          throw new RetryableSelectionError("Activa «Compartir també l’àudio» i torna a seleccionar la pestanya.");
+          throw new RetryableSelectionError("Activa «Compartir también el audio» y vuelve a seleccionar la pestaña.");
         }
 
         const mimeType = chooseMimeType();
@@ -270,11 +474,11 @@
         if (modeIsTab) preserveTabPlayback(audioTracks[0]);
         videoTrack.addEventListener("ended", async () => {
           if (stopping) return;
-          await reportError(new Error("Chrome ha deixat de compartir la font."));
+          await reportError(new Error("Chrome ha dejado de compartir la fuente."));
           stopRecording();
         }, { once: true });
         selectButton.hidden = true;
-        setStatus("Font preparada. Conference Recorder començarà en un moment.");
+        setStatus("Fuente preparada. La grabación comenzará en un momento.");
         await pollCommands();
       } catch (error) {
         if (stream) stopTracks();
@@ -283,7 +487,7 @@
         if (error instanceof RetryableSelectionError) {
           setStatus(error.message, "error");
         } else if (error instanceof DOMException && error.name === "NotAllowedError") {
-          await reportError(new Error("Selecció cancel·lada."));
+          await reportError(new Error("Selección cancelada."));
           stopping = true;
           window.setTimeout(() => window.close(), 700);
         } else {
@@ -297,7 +501,7 @@
     window.addEventListener("beforeunload", () => {
       if (stopping) return;
       const payload = new Blob(
-        [JSON.stringify({ message: "S'ha tancat el selector de Chrome." })],
+        [JSON.stringify({ message: "Se ha cerrado el selector de Chrome." })],
         { type: "application/json" },
       );
       navigator.sendBeacon(`${apiBase}/error`, payload);
