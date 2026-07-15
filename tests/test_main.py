@@ -12,7 +12,11 @@ from bizneo_recorder import __version__
 from bizneo_recorder.app import build_recording_config, format_elapsed
 from bizneo_recorder.chrome_audio import ChromeAudioDiagnostic
 from bizneo_recorder.ffmpeg import DiagnosticResult
-from bizneo_recorder.main import resource_path, run_self_test
+from bizneo_recorder.main import (
+    load_browser_capture_page,
+    resource_path,
+    run_self_test,
+)
 from bizneo_recorder.models import CaptureMode, Microphone
 
 
@@ -90,6 +94,12 @@ class MainTests(unittest.TestCase):
                 path = resource_path("tools/ffmpeg.exe")
 
             self.assertEqual(path, Path(directory) / "tools" / "ffmpeg.exe")
+
+    def test_browser_capture_page_is_available_as_package_data(self) -> None:
+        page = load_browser_capture_page()
+
+        self.assertIn("getDisplayMedia", page)
+        self.assertIn("__CAPTURE_CONFIG__", page)
 
     def test_format_elapsed_produces_minutes_and_seconds(self) -> None:
         self.assertEqual(format_elapsed(0), "00:00")

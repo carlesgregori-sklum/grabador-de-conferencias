@@ -10,15 +10,17 @@ from tkinter import messagebox, ttk
 
 from .ffmpeg import FFmpegClient, FFmpegError
 from .models import (
+    CAPTURE_MODE_LABELS,
     RESOLUTION_PRESETS,
     SUPPORTED_FPS,
+    CaptureMode,
     Microphone,
     RecordingConfig,
     get_resolution_preset,
     parse_capture_mode,
     parse_fps,
 )
-from .processes import ProcessDiscoveryError, find_chrome_root
+from .processes import ChromeProcess, ProcessDiscoveryError, find_chrome
 from .recorder import Recorder, RecorderError, RecorderState
 
 
@@ -33,6 +35,23 @@ DANGER_ACTIVE = "#B42318"
 SUCCESS = "#067647"
 WARNING = "#B54708"
 BORDER = "#D0D5DD"
+
+CAPTURE_HELP: dict[CaptureMode, str] = {
+    CaptureMode.PRIMARY_SCREEN: (
+        "Grava directament tota la pantalla principal, sense mostrar cap selector."
+    ),
+    CaptureMode.SELECTED_MONITOR: (
+        "Chrome obrirà el selector perquè tries una pantalla completa."
+    ),
+    CaptureMode.CHROME_TAB: (
+        "Tria una pestanya i activa «Compartir també l’àudio» en Chrome."
+    ),
+}
+CAPTURE_ACTION: dict[CaptureMode, str] = {
+    CaptureMode.PRIMARY_SCREEN: "Gravar pantalla principal",
+    CaptureMode.SELECTED_MONITOR: "Triar pantalla i gravar",
+    CaptureMode.CHROME_TAB: "Triar pestanya i gravar",
+}
 
 
 def format_elapsed(seconds: float) -> str:
@@ -65,21 +84,21 @@ def build_recording_config(
 
 
 class BizneoRecorderApp:
-    """Minimal conference UI for full-screen video and Chrome-only audio."""
+    """Minimal UI for selectable video, Chrome audio and optional microphone."""
 
     def __init__(
         self,
         root: tk.Tk,
         client: FFmpegClient,
         recorder: Recorder,
-        chrome_finder: Callable[[], int | None] = find_chrome_root,
+        chrome_finder: Callable[[], ChromeProcess | None] = find_chrome,
     ) -> None:
         self.root = root
         self.client = client
         self.recorder = recorder
         self.chrome_finder = chrome_finder
         self.output_dir = Path.home() / "Videos" / "Conference Recorder"
-        self.chrome_process_id: int | None = None
+        self.chrome_process: ChromeProcess | None = None
         self.microphones: list[Microphone] = []
         self.started_at = 0.0
         self.current_video: Path | None = None
@@ -94,6 +113,10 @@ class BizneoRecorderApp:
         self.microphone_state_var = tk.StringVar(value="El micròfon està desactivat")
         self.resolution_var = tk.StringVar(value="Full HD 1080p")
         self.fps_var = tk.StringVar(value="30 FPS")
+        self.capture_mode_var = tk.StringVar(value="Tota la pantalla principal")
+        self.capture_help_var = tk.StringVar(
+            value=CAPTURE_HELP[CaptureMode.PRIMARY_SCREEN]
+        )
 
         self._configure_window()
         self._build_interface()
@@ -103,9 +126,9 @@ class BizneoRecorderApp:
 
     def _configure_window(self) -> None:
         self.root.title("Conference Recorder")
-        self.root.geometry("580x650")
-        self.root.minsize(580, 650)
-        self.root.maxsize(580, 650)
+        self.root.geometry("580x790")
+        self.root.minsize(580, 790)
+        self.root.maxsize(580, 790)
         self.root.configure(bg=BACKGROUND)
 
         style = ttk.Style(self.root)
@@ -135,7 +158,7 @@ class BizneoRecorderApp:
         ).pack(anchor="w")
         tk.Label(
             container,
-            text="Grava tota la pantalla i l'àudio de Chrome en un MP4.",
+            text="Tria què vols gravar i guarda-ho amb l'àudio de Chrome en MP4.",
             bg=BACKGROUND,
             fg=MUTED,
             font=("Segoe UI", 10),
@@ -179,6 +202,51 @@ class BizneoRecorderApp:
 
         separator = tk.Frame(card, bg="#EAECF0", height=1)
         separator.pack(fill="x", pady=15)
+
+        tk.Label(
+            card,
+            text="Què vols gravar?",
+            bg=SURFACE,
+            fg=TEXT,
+            font=("Segoe UI Semibold", 10),
+        ).pack(anchor="w")
+        source_panel = tk.Frame(card, bg=SURFACE)
+        source_panel.pack(fill="x", pady=(7, 5))
+        self.capture_mode_buttons: list[tk.Radiobutton] = []
+        for label in CAPTURE_MODE_LABELS:
+            button = tk.Radiobutton(
+                source_panel,
+                text=label,
+                value=label,
+                variable=self.capture_mode_var,
+                command=self._capture_mode_changed,
+                bg=SURFACE,
+                fg=TEXT,
+                activebackground=SURFACE,
+                activeforeground=TEXT,
+                selectcolor=SURFACE,
+                anchor="w",
+                relief="flat",
+                borderwidth=0,
+                cursor="hand2",
+                font=("Segoe UI", 10),
+            )
+            button.pack(fill="x", pady=1)
+            self.capture_mode_buttons.append(button)
+        tk.Label(
+            card,
+            textvariable=self.capture_help_var,
+            bg="#F7F8FA",
+            fg=MUTED,
+            font=("Segoe UI", 9),
+            justify="left",
+            anchor="w",
+            wraplength=470,
+            padx=10,
+            pady=8,
+        ).pack(fill="x", pady=(3, 0))
+
+        tk.Frame(card, bg="#EAECF0", height=1).pack(fill="x", pady=15)
 
         self.microphone_toggle = tk.Checkbutton(
             card,
@@ -275,7 +343,7 @@ class BizneoRecorderApp:
 
         self.record_button = tk.Button(
             container,
-            text="Gravar conferència",
+            text=CAPTURE_ACTION[CaptureMode.PRIMARY_SCREEN],
             command=self.toggle_recording,
             state="disabled",
             bg=PRIMARY,
@@ -324,13 +392,27 @@ class BizneoRecorderApp:
         )
         self.open_folder_button.pack()
 
+    @property
+    def chrome_process_id(self) -> int | None:
+        return self.chrome_process.pid if self.chrome_process is not None else None
+
+    def _selected_capture_mode(self) -> CaptureMode:
+        return parse_capture_mode(self.capture_mode_var.get())
+
+    def _capture_mode_changed(self) -> None:
+        mode = self._selected_capture_mode()
+        self.capture_help_var.set(CAPTURE_HELP[mode])
+        if self.recorder.state is RecorderState.IDLE:
+            self.record_button.configure(text=CAPTURE_ACTION[mode])
+        self._update_ready_state()
+
     def refresh_chrome(self) -> None:
         if self.recorder.state is not RecorderState.IDLE:
             return
         try:
-            self.chrome_process_id = self.chrome_finder()
+            self.chrome_process = self.chrome_finder()
         except ProcessDiscoveryError as error:
-            self.chrome_process_id = None
+            self.chrome_process = None
             self.chrome_state_var.set("● No s'ha pogut comprovar Chrome")
             self.chrome_state_label.configure(fg=DANGER)
             self.status_var.set(str(error))
@@ -432,9 +514,14 @@ class BizneoRecorderApp:
             self.status_var.set("Selecciona un micròfon o desactiva l'opció.")
         else:
             sources = "Chrome + micròfon" if self.include_microphone_var.get() else "Chrome"
-            self.status_var.set(
-                f"Preparat: pantalla completa · àudio de {sources}."
-            )
+            mode = self._selected_capture_mode()
+            if mode is CaptureMode.PRIMARY_SCREEN:
+                source = "pantalla principal"
+            elif mode is CaptureMode.SELECTED_MONITOR:
+                source = "tria una pantalla completa en Chrome"
+            else:
+                source = "tria una pestanya amb «Compartir també l’àudio»"
+            self.status_var.set(f"Preparat: {source} · àudio de {sources}.")
 
     def _set_quality_controls_state(self, state: str) -> None:
         self.resolution_box.configure(state=state)
@@ -443,6 +530,8 @@ class BizneoRecorderApp:
     def _set_idle_controls(self) -> None:
         self.microphone_toggle.configure(state="normal")
         self.refresh_chrome_button.configure(state="normal")
+        for button in self.capture_mode_buttons:
+            button.configure(state="normal")
         self._set_quality_controls_state("readonly")
         self.microphone_box.configure(state="readonly")
         self.refresh_microphone_button.configure(state="normal")
@@ -472,6 +561,7 @@ class BizneoRecorderApp:
                 microphone,
                 self.resolution_var.get(),
                 self.fps_var.get(),
+                self.capture_mode_var.get(),
             )
         except ValueError as error:
             messagebox.showerror("Configuració no vàlida", str(error), parent=self.root)
@@ -482,12 +572,22 @@ class BizneoRecorderApp:
         self.refresh_chrome_button.configure(state="disabled")
         self.microphone_box.configure(state="disabled")
         self.refresh_microphone_button.configure(state="disabled")
+        for button in self.capture_mode_buttons:
+            button.configure(state="disabled")
         self._set_quality_controls_state("disabled")
-        self.status_var.set("Preparant àudio de Chrome i captura de pantalla…")
+        if self._selected_capture_mode() is CaptureMode.PRIMARY_SCREEN:
+            self.status_var.set("Preparant àudio de Chrome i captura de pantalla…")
+        else:
+            self.status_var.set("Obrint el selector natiu de Chrome…")
 
         def worker() -> None:
             try:
-                video_path = self.recorder.start(config)
+                chrome_executable = (
+                    self.chrome_process.executable
+                    if self.chrome_process is not None
+                    else None
+                )
+                video_path = self.recorder.start(config, chrome_executable)
             except (RecorderError, OSError) as error:
                 self._schedule_ui(lambda error=error: self._start_failed(error))
             else:
@@ -506,15 +606,21 @@ class BizneoRecorderApp:
             activebackground=DANGER_ACTIVE,
         )
         microphone = " i micròfon" if self.include_microphone_var.get() else ""
+        mode = self._selected_capture_mode()
+        source = {
+            CaptureMode.PRIMARY_SCREEN: "la pantalla principal",
+            CaptureMode.SELECTED_MONITOR: "la pantalla seleccionada",
+            CaptureMode.CHROME_TAB: "la pestanya seleccionada",
+        }[mode]
         self.status_var.set(
-            f"Gravant tota la pantalla, Chrome{microphone}. Torna ací per finalitzar."
+            f"Gravant {source}, Chrome{microphone}. Torna ací per finalitzar."
         )
         self.root.after(700, self.root.iconify)
         self._tick()
 
     def _start_failed(self, error: Exception) -> None:
         self.record_button.configure(
-            text="Gravar conferència",
+            text=CAPTURE_ACTION[self._selected_capture_mode()],
             bg=PRIMARY,
             activebackground=PRIMARY_ACTIVE,
         )

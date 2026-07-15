@@ -3,13 +3,16 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Callable
+from importlib import resources
 from pathlib import Path
 from typing import TextIO
 
 from .app import BizneoRecorderApp
+from .browser_capture import BrowserCaptureBridge
 from .chrome_audio import ChromeAudioClient
 from .ffmpeg import FFmpegClient, FFmpegError
 from .processes import ProcessDiscoveryError, find_chrome_root
+from .models import RecordingConfig, RecordingPaths
 from .recorder import Recorder
 
 
@@ -21,6 +24,14 @@ def resource_path(relative: str) -> Path:
     else:
         base_dir = Path(__file__).resolve().parents[2]
     return base_dir / Path(relative)
+
+
+def load_browser_capture_page() -> str:
+    return (
+        resources.files("bizneo_recorder")
+        .joinpath("assets", "browser_capture.html")
+        .read_text(encoding="utf-8")
+    )
 
 
 def run_self_test(
@@ -88,7 +99,24 @@ def main(argv: list[str] | None = None) -> int:
     import tkinter as tk
 
     root = tk.Tk()
-    recorder = Recorder(client, chrome_audio)
+    browser_capture_page = load_browser_capture_page()
+
+    def make_browser_capture(
+        config: RecordingConfig,
+        paths: RecordingPaths,
+    ) -> BrowserCaptureBridge:
+        return BrowserCaptureBridge(
+            browser_capture_page,
+            config.capture_mode,
+            paths.browser_capture,
+            config.fps,
+        )
+
+    recorder = Recorder(
+        client,
+        chrome_audio,
+        browser_capture_factory=make_browser_capture,
+    )
     BizneoRecorderApp(root, client, recorder)
     root.mainloop()
     return 0
