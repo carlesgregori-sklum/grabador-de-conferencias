@@ -7,8 +7,9 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Callable
 
-from .ffmpeg import FFmpegClient
-from .models import RecordingConfig
+from .chrome_audio import ChromeAudioClient, ChromeAudioError, ChromeAudioProcess
+from .ffmpeg import FFmpegClient, FFmpegError
+from .models import RecordingConfig, RecordingPaths
 
 
 class RecorderError(RuntimeError):
@@ -25,47 +26,64 @@ ProcessFactory = Callable[..., Any]
 
 
 class Recorder:
-    """Owns one FFmpeg process and its safe file-finalization lifecycle."""
+    """Coordinates screen, Chrome audio and final MP4 ownership."""
 
     def __init__(
         self,
         client: FFmpegClient,
+        chrome_audio: ChromeAudioClient,
         process_factory: ProcessFactory = subprocess.Popen,
     ) -> None:
         self.client = client
+        self.chrome_audio = chrome_audio
         self._process_factory = process_factory
-        self._process: Any | None = None
-        self._final_path: Path | None = None
-        self._working_path: Path | None = None
+        self._screen_process: Any | None = None
+        self._chrome_process: ChromeAudioProcess | Any | None = None
+        self._paths: RecordingPaths | None = None
+        self._config: RecordingConfig | None = None
         self._stderr_lines: deque[str] = deque(maxlen=80)
         self._stderr_thread: threading.Thread | None = None
         self.state = RecorderState.IDLE
         self.last_error = ""
 
     @property
-    def final_path(self) -> Path:
-        if self._final_path is None:
+    def paths(self) -> RecordingPaths:
+        if self._paths is None:
             raise RecorderError("Encara no hi ha cap gravació preparada.")
-        return self._final_path
+        return self._paths
+
+    @property
+    def final_path(self) -> Path:
+        return self.paths.final
 
     @property
     def working_path(self) -> Path:
-        if self._working_path is None:
-            raise RecorderError("Encara no hi ha cap gravació preparada.")
-        return self._working_path
+        return self.paths.partial
 
     def start(self, config: RecordingConfig) -> Path:
         if self.state is not RecorderState.IDLE:
             raise RecorderError("Ja hi ha una gravació en marxa.")
 
         config.output_dir.mkdir(parents=True, exist_ok=True)
-        final_path, working_path = config.next_paths()
-        command = self.client.build_record_command(config, working_path)
+        self._paths = config.next_paths()
+        self._config = config
         self._stderr_lines.clear()
         self.last_error = ""
 
         try:
-            process = self._process_factory(
+            self._chrome_process = self.chrome_audio.start(
+                config.chrome_process_id,
+                self.paths.chrome_audio,
+            )
+        except (ChromeAudioError, OSError) as error:
+            self._reset_live_state()
+            raise RecorderError(
+                f"No s'ha pogut iniciar l'àudio de Chrome: {error}"
+            ) from error
+
+        command = self.client.build_capture_command(config, self.paths.capture)
+        try:
+            screen_process = self._process_factory(
                 command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
@@ -76,20 +94,32 @@ class Recorder:
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except (OSError, ValueError) as error:
-            raise RecorderError(f"No s'ha pogut iniciar la gravació: {error}") from error
+            self._stop_chrome_after_start_failure()
+            self._reset_live_state()
+            raise RecorderError(
+                f"No s'ha pogut iniciar la captura de pantalla: {error}"
+            ) from error
 
-        self._process = process
-        self._final_path = final_path
-        self._working_path = working_path
+        self._screen_process = screen_process
         self.state = RecorderState.RECORDING
         self._stderr_thread = threading.Thread(
             target=self._drain_stderr,
-            args=(process,),
+            args=(screen_process,),
             name="ffmpeg-stderr",
             daemon=True,
         )
         self._stderr_thread.start()
-        return final_path
+        return self.paths.final
+
+    def _stop_chrome_after_start_failure(self) -> None:
+        if self._chrome_process is None:
+            return
+        try:
+            self._chrome_process.stop()
+        except (ChromeAudioError, OSError):
+            pass
+        if self._paths is not None:
+            self._paths.chrome_audio.unlink(missing_ok=True)
 
     def _drain_stderr(self, process: Any) -> None:
         stream = process.stderr
@@ -104,16 +134,54 @@ class Recorder:
             return
 
     def poll(self) -> int | None:
-        if self._process is None or self.state is RecorderState.IDLE:
+        if self.state is not RecorderState.RECORDING:
             return None
-        return self._process.poll()
+        if self._screen_process is not None:
+            screen_code = self._screen_process.poll()
+            if screen_code is not None:
+                return screen_code
+        if self._chrome_process is not None:
+            chrome_code = self._chrome_process.poll()
+            if chrome_code is not None:
+                return chrome_code
+        return None
 
     def stop(self, timeout: float = 15.0) -> Path:
-        if self.state is not RecorderState.RECORDING or self._process is None:
+        if (
+            self.state is not RecorderState.RECORDING
+            or self._screen_process is None
+            or self._chrome_process is None
+            or self._config is None
+        ):
             raise RecorderError("No hi ha cap gravació en marxa.")
 
         self.state = RecorderState.STOPPING
-        process = self._process
+        try:
+            self._stop_screen(timeout)
+            self._chrome_process.stop(timeout=min(timeout, 10.0))
+            if not self.paths.capture.is_file():
+                raise RecorderError(
+                    "La captura de pantalla no ha creat el fitxer temporal."
+                )
+            self.client.run_finalize(self._config, self.paths)
+            if not self.paths.partial.is_file():
+                raise RecorderError("FFmpeg no ha creat l'MP4 final temporal.")
+            self.paths.partial.replace(self.paths.final)
+            self.paths.capture.unlink(missing_ok=True)
+            self.paths.chrome_audio.unlink(missing_ok=True)
+            return self.paths.final
+        except (ChromeAudioError, FFmpegError, RecorderError, OSError, RuntimeError) as error:
+            self.last_error = str(error)
+            raise RecorderError(str(error)) from error
+        finally:
+            if self._stderr_thread is not None:
+                self._stderr_thread.join(timeout=1.0)
+            self._reset_live_state()
+
+    def _stop_screen(self, timeout: float) -> None:
+        process = self._screen_process
+        if process is None:
+            raise RecorderError("La captura de pantalla no està activa.")
         try:
             if process.stdin is not None:
                 process.stdin.write("q\n")
@@ -122,7 +190,9 @@ class Recorder:
         except subprocess.TimeoutExpired:
             process.kill()
             return_code = process.wait(timeout=5.0)
-            self._stderr_lines.append("FFmpeg no s'ha aturat dins del temps esperat.")
+            self._stderr_lines.append(
+                "FFmpeg no s'ha aturat dins del temps esperat."
+            )
         except (BrokenPipeError, OSError, ValueError) as error:
             return_code = process.poll()
             self._stderr_lines.append(str(error))
@@ -130,22 +200,16 @@ class Recorder:
                 process.kill()
                 return_code = process.wait(timeout=5.0)
 
-        if self._stderr_thread is not None:
-            self._stderr_thread.join(timeout=1.0)
+        if return_code != 0:
+            diagnostic = "\n".join(list(self._stderr_lines)[-8:]).strip()
+            raise RecorderError(
+                diagnostic
+                or f"La captura de pantalla ha finalitzat amb el codi {return_code}."
+            )
 
+    def _reset_live_state(self) -> None:
+        self._screen_process = None
+        self._chrome_process = None
+        self._config = None
+        self._stderr_thread = None
         self.state = RecorderState.IDLE
-        self._process = None
-
-        if return_code == 0 and self.working_path.is_file():
-            self.working_path.replace(self.final_path)
-            return self.final_path
-
-        diagnostics = "\n".join(list(self._stderr_lines)[-8:]).strip()
-        if not diagnostics:
-            diagnostics = f"FFmpeg ha finalitzat amb el codi {return_code}."
-        self.last_error = diagnostics
-        raise RecorderError(
-            "La gravació no s'ha pogut finalitzar. "
-            f"El fitxer temporal es conserva si existeix.\n\n{diagnostics}"
-        )
-
