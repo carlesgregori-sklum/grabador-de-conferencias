@@ -8,6 +8,7 @@ from bizneo_recorder.ui import (
     CaptureCard,
     OrbitalRecorder,
     ToggleSwitch,
+    WaveformIndicator,
     blend_color,
     rounded_rectangle_points,
 )
@@ -112,6 +113,17 @@ class UiWidgetTests(unittest.TestCase):
         self.assertEqual(orb.state, "recording")
         self.assertIsNotNone(animation_job)
         self.assertEqual(orb.animation_job, animation_job)
+
+    def test_waveform_indicator_can_be_activated_and_paused(self) -> None:
+        waveform = WaveformIndicator(self.root)
+
+        waveform.set_active(True)
+
+        self.assertTrue(waveform.active)
+        self.assertIsNotNone(waveform.animation_job)
+
+        waveform.set_active(False)
+        self.assertFalse(waveform.active)
 
 
 if __name__ == "__main__":

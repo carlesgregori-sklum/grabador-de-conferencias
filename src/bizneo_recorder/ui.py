@@ -304,6 +304,75 @@ class ToggleSwitch(tk.Canvas):
             self._animation_job = None
 
 
+class WaveformIndicator(tk.Canvas):
+    """Decorative low-amplitude waveform that reflects microphone state."""
+
+    def __init__(
+        self,
+        parent: tk.Misc,
+        *,
+        width: int = 250,
+        height: int = 32,
+    ) -> None:
+        super().__init__(
+            parent,
+            width=width,
+            height=height,
+            bg=SURFACE,
+            highlightthickness=0,
+            bd=0,
+        )
+        self.active = False
+        self._started_at = time.monotonic()
+        self.animation_job: str | None = None
+        self.bind("<Destroy>", self._on_destroy)
+        self._animate()
+
+    def set_active(self, active: bool) -> None:
+        self.active = active
+        self._draw()
+
+    def _animate(self) -> None:
+        self._draw()
+        self.animation_job = self.after(45 if self.active else 140, self._animate)
+
+    def _draw(self) -> None:
+        self.delete("all")
+        width = int(self.cget("width"))
+        height = int(self.cget("height"))
+        center_y = height / 2
+        elapsed = time.monotonic() - self._started_at
+        bars = 30
+        for index in range(bars):
+            x = 4 + index * ((width - 8) / (bars - 1))
+            wave = (
+                math.sin(index * 1.18 + elapsed * 4.2)
+                + math.sin(index * 0.52 - elapsed * 2.1)
+            ) / 2
+            amplitude = (4 + abs(wave) * 9) if self.active else 2 + abs(wave) * 2
+            amount = index / (bars - 1)
+            color = blend_color(VIOLET, CORAL, amount)
+            if not self.active:
+                color = blend_color(SURFACE, color, 0.32)
+            self.create_line(
+                x,
+                center_y - amplitude,
+                x,
+                center_y + amplitude,
+                fill=color,
+                width=2,
+                capstyle="round",
+            )
+
+    def _on_destroy(self, event: tk.Event[tk.Misc]) -> None:
+        if event.widget is self and self.animation_job is not None:
+            try:
+                self.after_cancel(self.animation_job)
+            except tk.TclError:
+                pass
+            self.animation_job = None
+
+
 class AnimatedActionButton(tk.Canvas):
     """Primary action with a restrained breathing border and clear state API."""
 
