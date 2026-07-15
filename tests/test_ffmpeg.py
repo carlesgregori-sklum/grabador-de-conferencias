@@ -40,42 +40,86 @@ class DirectShowParserTests(unittest.TestCase):
 
 
 class FFmpegClientTests(unittest.TestCase):
-    def test_record_command_has_desktop_and_only_selected_microphone(self) -> None:
+    def test_capture_command_records_full_desktop_without_microphone(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output_dir = Path(directory)
-            config = RecordingConfig(Microphone("Microphone Array"), output_dir)
+            config = RecordingConfig(output_dir, chrome_process_id=321)
             client = FFmpegClient(Path("ffmpeg.exe"))
 
-            command = client.build_record_command(
+            command = client.build_capture_command(
                 config,
-                output_dir / "recording.part.mp4",
+                output_dir / "recording.capture.mkv",
             )
 
         self.assertIn("desktop", command)
-        self.assertIn("audio=Microphone Array", command)
-        self.assertNotIn("Stereo Mix", command)
+        self.assertNotIn("dshow", command)
         self.assertIn("libx264", command)
-        self.assertIn("aac", command)
         self.assertIn("1920:1080", " ".join(command))
-        self.assertEqual(command[-1], str(output_dir / "recording.part.mp4"))
+        self.assertEqual(command[-1], str(output_dir / "recording.capture.mkv"))
 
-    def test_record_command_uses_selected_720p_60_profile(self) -> None:
+    def test_capture_command_adds_only_selected_microphone(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output_dir = Path(directory)
             config = RecordingConfig(
-                Microphone("Microphone Array"),
                 output_dir,
-                width=1280,
-                height=720,
-                fps=60,
+                chrome_process_id=321,
+                microphone=Microphone("USB Microphone"),
             )
-            command = FFmpegClient(Path("ffmpeg.exe")).build_record_command(
+            command = FFmpegClient(Path("ffmpeg.exe")).build_capture_command(
                 config,
-                output_dir / "recording.part.mp4",
+                output_dir / "recording.capture.mkv",
             )
+
+        self.assertIn("dshow", command)
+        self.assertIn("audio=USB Microphone", command)
+        self.assertIn("pcm_s16le", command)
+
+    def test_capture_command_uses_selected_720p_60_profile(self) -> None:
+        config = RecordingConfig(
+            Path("videos"),
+            chrome_process_id=321,
+            width=1280,
+            height=720,
+            fps=60,
+        )
+        command = FFmpegClient(Path("ffmpeg.exe")).build_capture_command(
+            config,
+            Path("recording.capture.mkv"),
+        )
 
         self.assertIn("1280:720", " ".join(command))
         self.assertGreaterEqual(command.count("60"), 2)
+
+    def test_finalize_command_uses_chrome_as_only_audio_without_microphone(self) -> None:
+        config = RecordingConfig(Path("videos"), chrome_process_id=321)
+        paths = config.next_paths()
+
+        command = FFmpegClient(Path("ffmpeg.exe")).build_finalize_command(
+            config,
+            paths,
+        )
+
+        self.assertIn(str(paths.chrome_audio), command)
+        self.assertNotIn("amix", " ".join(command))
+        self.assertIn("copy", command)
+        self.assertIn("aac", command)
+        self.assertEqual(command[-1], str(paths.partial))
+
+    def test_finalize_command_mixes_chrome_and_microphone(self) -> None:
+        config = RecordingConfig(
+            Path("videos"),
+            chrome_process_id=321,
+            microphone=Microphone("USB Microphone"),
+        )
+        paths = config.next_paths()
+
+        command = FFmpegClient(Path("ffmpeg.exe")).build_finalize_command(
+            config,
+            paths,
+        )
+
+        self.assertIn("amix=inputs=2", " ".join(command))
+        self.assertIn("[a]", command)
 
     @patch("bizneo_recorder.ffmpeg.subprocess.run")
     def test_list_microphones_parses_stderr_even_when_ffmpeg_returns_one(

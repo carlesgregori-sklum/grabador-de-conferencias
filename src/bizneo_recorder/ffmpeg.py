@@ -5,7 +5,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from .models import Microphone, RecordingConfig
+from .models import Microphone, RecordingConfig, RecordingPaths
 
 
 class FFmpegError(RuntimeError):
@@ -92,19 +92,17 @@ class FFmpegClient:
             microphones=tuple(self.list_microphones()),
         )
 
-    def build_record_command(
+    def build_capture_command(
         self,
         config: RecordingConfig,
-        working_path: Path,
+        capture_path: Path,
     ) -> list[str]:
         size = f"{config.width}:{config.height}"
         video_filter = (
-            f"[0:v]scale={size}:force_original_aspect_ratio=decrease,"
-            f"pad={size}:(ow-iw)/2:(oh-ih)/2,setsar=1[v];"
-            "[1:a]aresample=48000:async=1:first_pts=0[a]"
+            f"scale={size}:force_original_aspect_ratio=decrease,"
+            f"pad={size}:(ow-iw)/2:(oh-ih)/2,setsar=1"
         )
-
-        return [
+        command = [
             str(self.executable),
             "-hide_banner",
             "-loglevel",
@@ -120,36 +118,116 @@ class FFmpegClient:
             "1",
             "-i",
             "desktop",
-            "-thread_queue_size",
-            "1024",
-            "-f",
-            "dshow",
-            "-i",
-            f"audio={config.microphone.name}",
-            "-filter_complex",
-            video_filter,
-            "-map",
-            "[v]",
-            "-map",
-            "[a]",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "18",
-            "-pix_fmt",
-            "yuv420p",
-            "-r",
-            str(config.fps),
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-ar",
-            "48000",
-            "-movflags",
-            "+faststart",
-            str(working_path),
         ]
+        if config.microphone is None:
+            command.extend(["-vf", video_filter, "-map", "0:v:0"])
+        else:
+            command.extend(
+                [
+                    "-thread_queue_size",
+                    "1024",
+                    "-f",
+                    "dshow",
+                    "-i",
+                    f"audio={config.microphone.name}",
+                    "-filter_complex",
+                    f"[0:v]{video_filter}[v];"
+                    "[1:a]aresample=44100:async=1:first_pts=0,"
+                    "aformat=sample_fmts=s16:channel_layouts=stereo[mic]",
+                    "-map",
+                    "[v]",
+                    "-map",
+                    "[mic]",
+                ]
+            )
+        command.extend(
+            [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                "-r",
+                str(config.fps),
+            ]
+        )
+        if config.microphone is not None:
+            command.extend(["-c:a", "pcm_s16le", "-ar", "44100", "-ac", "2"])
+        command.append(str(capture_path))
+        return command
+
+    def build_finalize_command(
+        self,
+        config: RecordingConfig,
+        paths: RecordingPaths,
+    ) -> list[str]:
+        command = [
+            str(self.executable),
+            "-hide_banner",
+            "-loglevel",
+            "warning",
+            "-y",
+            "-i",
+            str(paths.capture),
+            "-i",
+            str(paths.chrome_audio),
+        ]
+        if config.microphone is None:
+            command.extend(["-map", "0:v:0", "-map", "1:a:0"])
+        else:
+            command.extend(
+                [
+                    "-filter_complex",
+                    "[1:a]aresample=44100:async=1:first_pts=0[chrome];"
+                    "[0:a]aresample=44100:async=1:first_pts=0[mic];"
+                    "[chrome][mic]amix=inputs=2:duration=longest:"
+                    "dropout_transition=0,aresample=44100:async=1:first_pts=0[a]",
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "[a]",
+                ]
+            )
+        command.extend(
+            [
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-ar",
+                "44100",
+                "-movflags",
+                "+faststart",
+                "-shortest",
+                str(paths.partial),
+            ]
+        )
+        return command
+
+    def run_finalize(self, config: RecordingConfig, paths: RecordingPaths) -> None:
+        try:
+            result = subprocess.run(
+                self.build_finalize_command(config, paths),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                check=False,
+            )
+        except (FileNotFoundError, OSError) as error:
+            raise FFmpegError(
+                "No s'ha pogut obrir FFmpeg per finalitzar el vídeo."
+            ) from error
+        if result.returncode != 0:
+            diagnostic = "\n".join(result.stderr.strip().splitlines()[-8:])
+            raise FFmpegError(
+                diagnostic
+                or f"FFmpeg ha fallat en finalitzar amb el codi {result.returncode}."
+            )
 
