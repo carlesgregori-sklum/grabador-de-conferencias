@@ -5,6 +5,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from ctypes import wintypes
 from dataclasses import dataclass
+from pathlib import Path
 
 
 class ProcessDiscoveryError(RuntimeError):
@@ -16,6 +17,12 @@ class ProcessInfo:
     pid: int
     parent_pid: int
     name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ChromeProcess:
+    pid: int
+    executable: Path
 
 
 class _ProcessEntry32W(ctypes.Structure):
@@ -109,3 +116,52 @@ def enumerate_processes() -> list[ProcessInfo]:
 
 def find_chrome_root() -> int | None:
     return select_chrome_root(enumerate_processes())
+
+
+def query_process_executable(pid: int) -> Path:
+    """Return the executable path for a process using limited query access."""
+
+    if pid <= 0:
+        raise ProcessDiscoveryError("El PID de Chrome no és vàlid.")
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    open_process = kernel32.OpenProcess
+    open_process.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    open_process.restype = wintypes.HANDLE
+    query_path = kernel32.QueryFullProcessImageNameW
+    query_path.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.LPWSTR,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    query_path.restype = wintypes.BOOL
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = [wintypes.HANDLE]
+    close_handle.restype = wintypes.BOOL
+
+    handle = open_process(0x1000, False, pid)
+    if not handle:
+        raise ProcessDiscoveryError(
+            f"Windows no ha pogut obrir Chrome ({ctypes.get_last_error()})."
+        )
+
+    try:
+        buffer = ctypes.create_unicode_buffer(32768)
+        size = wintypes.DWORD(len(buffer))
+        if not query_path(handle, 0, buffer, ctypes.byref(size)):
+            raise ProcessDiscoveryError(
+                "Windows no ha pogut localitzar l'executable de Chrome "
+                f"({ctypes.get_last_error()})."
+            )
+        return Path(buffer.value)
+    finally:
+        close_handle(handle)
+
+
+def find_chrome() -> ChromeProcess | None:
+    processes = enumerate_processes()
+    root_pid = select_chrome_root(processes)
+    if root_pid is None:
+        return None
+    return ChromeProcess(root_pid, query_process_executable(root_pid))
