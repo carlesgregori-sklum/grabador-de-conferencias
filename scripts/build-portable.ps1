@@ -6,8 +6,8 @@ $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $workRoot = Join-Path $projectRoot "work\portable-build"
 $outputRoot = Join-Path $projectRoot "outputs"
-$portableDir = Join-Path $outputRoot "Bizneo Recorder"
-$archivePath = Join-Path $outputRoot "Bizneo-Recorder-Portable.zip"
+$portableDir = Join-Path $outputRoot "Conference Recorder"
+$archivePath = Join-Path $outputRoot "Conference-Recorder-Portable.zip"
 $ffmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 $ffmpegLicenseUrl = "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n8.1.2/COPYING.GPLv3"
 $pyInstallerVersion = "6.21.0"
@@ -30,9 +30,20 @@ function Remove-ProjectItem {
 }
 
 function Assert-PortableLayout {
+    $requiredDirectories = @(
+        (Join-Path $portableDir "_runtime"),
+        (Join-Path $portableDir "tools")
+    )
+    foreach ($directory in $requiredDirectories) {
+        if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+            throw "Portable package is incomplete. Missing directory: $directory"
+        }
+    }
+
     $required = @(
-        (Join-Path $portableDir "Bizneo Recorder.exe"),
+        (Join-Path $portableDir "Conference Recorder.exe"),
         (Join-Path $portableDir "tools\ffmpeg.exe"),
+        (Join-Path $portableDir "tools\chrome-audio-capture.exe"),
         (Join-Path $portableDir "FFMPEG-LICENSE.txt"),
         (Join-Path $portableDir "FFMPEG-NOTICE.txt"),
         (Join-Path $portableDir "LLEGEIX-ME.txt")
@@ -69,6 +80,7 @@ New-Item -ItemType Directory -Force -Path $workRoot, $outputRoot | Out-Null
 $downloadDir = Join-Path $workRoot "downloads"
 $extractDir = Join-Path $workRoot "ffmpeg"
 $pyInstallerRoot = Join-Path $workRoot "pyinstaller"
+$nativeRoot = Join-Path $workRoot "native"
 $venvDir = Join-Path $workRoot "build-venv"
 New-Item -ItemType Directory -Force -Path $downloadDir | Out-Null
 
@@ -108,14 +120,25 @@ $buildDir = Join-Path $pyInstallerRoot "build"
 $specDir = Join-Path $pyInstallerRoot "spec"
 New-Item -ItemType Directory -Force -Path $distDir, $buildDir, $specDir | Out-Null
 
+New-Item -ItemType Directory -Force -Path $nativeRoot | Out-Null
+$chromeAudioHelper = Join-Path $nativeRoot "chrome-audio-capture.exe"
+Write-Host "Building the Chrome process-loopback helper..."
+& powershell -NoProfile -ExecutionPolicy Bypass `
+    -File (Join-Path $projectRoot "scripts\build-chrome-audio.ps1") `
+    -OutputPath $chromeAudioHelper
+if ($LASTEXITCODE -ne 0) {
+    throw "Chrome audio helper build failed with exit code $LASTEXITCODE."
+}
+
 Write-Host "Building the portable Windows executable..."
 & $venvPython -m PyInstaller `
     --noconfirm `
     --clean `
-    --onefile `
+    --onedir `
+    --contents-directory "_runtime" `
     --windowed `
     --noupx `
-    --name "Bizneo Recorder" `
+    --name "Conference Recorder" `
     --paths (Join-Path $projectRoot "src") `
     --distpath $distDir `
     --workpath $buildDir `
@@ -125,26 +148,46 @@ if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller failed with exit code $LASTEXITCODE."
 }
 
+$bundleDir = Join-Path $distDir "Conference Recorder"
+if (-not (Test-Path -LiteralPath $bundleDir -PathType Container)) {
+    throw "PyInstaller bundle not found: $bundleDir"
+}
+
 Remove-ProjectItem -Path $portableDir
+New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+Get-ChildItem -LiteralPath $bundleDir -Force | Copy-Item -Destination $portableDir -Recurse -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $portableDir "tools") | Out-Null
-Copy-Item -LiteralPath (Join-Path $distDir "Bizneo Recorder.exe") -Destination $portableDir
 Copy-Item -LiteralPath $ffmpegExe.FullName -Destination (Join-Path $portableDir "tools\ffmpeg.exe")
+Copy-Item -LiteralPath $chromeAudioHelper -Destination (Join-Path $portableDir "tools\chrome-audio-capture.exe")
 Copy-Item -LiteralPath $licensePath -Destination (Join-Path $portableDir "FFMPEG-LICENSE.txt")
 Copy-Item -LiteralPath (Join-Path $projectRoot "docs\portable-readme.txt") -Destination (Join-Path $portableDir "LLEGEIX-ME.txt")
 
 $notice = @"
-Bizneo Recorder includes an FFmpeg executable.
+Conference Recorder includes an FFmpeg executable.
 
 Windows build source: $ffmpegUrl
 FFmpeg project: https://ffmpeg.org/
 Downloaded archive SHA-256: $ffmpegHash
 License text: FFMPEG-LICENSE.txt
 
-FFmpeg is a separate program and is not part of the Bizneo Recorder source code.
+FFmpeg is a separate program and is not part of the Conference Recorder source code.
 "@
 Set-Content -LiteralPath (Join-Path $portableDir "FFMPEG-NOTICE.txt") -Value $notice -Encoding UTF8
 
 Assert-PortableLayout
+& (Join-Path $portableDir "tools\chrome-audio-capture.exe") --self-test
+if ($LASTEXITCODE -ne 0) {
+    throw "Chrome audio helper self-test failed with exit code $LASTEXITCODE."
+}
+$appSelfTest = Start-Process `
+    -FilePath (Join-Path $portableDir "Conference Recorder.exe") `
+    -ArgumentList "--self-test" `
+    -PassThru `
+    -Wait `
+    -WindowStyle Hidden
+if ($appSelfTest.ExitCode -ne 0) {
+    throw "Conference Recorder self-test failed with exit code $($appSelfTest.ExitCode)."
+}
 Remove-ProjectItem -Path $archivePath
 Compress-Archive -LiteralPath $portableDir -DestinationPath $archivePath -CompressionLevel Optimal
 if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {

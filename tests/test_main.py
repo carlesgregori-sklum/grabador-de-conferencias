@@ -3,10 +3,12 @@ from __future__ import annotations
 import io
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from bizneo_recorder import __version__
 from bizneo_recorder.app import build_recording_config, format_elapsed
 from bizneo_recorder.chrome_audio import ChromeAudioDiagnostic
 from bizneo_recorder.ffmpeg import DiagnosticResult
@@ -34,6 +36,15 @@ class FakeChromeAudioClient:
 
 
 class MainTests(unittest.TestCase):
+    def test_package_version_matches_project_metadata(self) -> None:
+        pyproject = tomllib.loads(
+            (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(__version__, pyproject["project"]["version"])
+
     def test_build_recording_config_supports_every_quality_combination(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             for resolution, expected_size in (

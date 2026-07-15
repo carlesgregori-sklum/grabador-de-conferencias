@@ -2,77 +2,86 @@
 
 ## Visió general
 
-Bizneo Recorder és una aplicació Windows portàtil escrita en Python. Tkinter presenta la interfície i un executable FFmpeg separat realitza la captura de pantalla, la lectura del micròfon i la codificació MP4. PyInstaller empaqueta Python i la interfície en un únic executable; FFmpeg queda com a binari adjacent per reduir el temps d’arrancada i mantindre visible la seua llicència.
+Conference Recorder és una aplicació Windows portable. Tkinter presenta la UI; FFmpeg captura tota la pantalla principal i, opcionalment, DirectShow llig el micròfon. Un helper C# usa WASAPI Process Loopback per capturar només l’àudio de l’arbre de processos de Chrome. Una passada final de FFmpeg combina les fonts en un MP4.
 
 ```text
-Bizneo Recorder
-├── README.md                         Resum del projecte i ordres principals
-├── pyproject.toml                    Metadades del paquet Python
+Conference Recorder
+├── README.md
+├── pyproject.toml
 ├── docs/
-│   ├── architecture.md               Este document
-│   ├── usage.md                      Ús, privacitat i resolució de problemes
-│   ├── portable-readme.txt           Guia inclosa en el ZIP
-│   └── superpowers/                  Especificació i pla d’implementació
+│   ├── architecture.md                 Este document
+│   ├── usage.md                        Ús, privacitat i problemes
+│   ├── portable-readme.txt             Guia inclosa en el ZIP
+│   ├── verification.md                 Resultats i hashes
+│   └── superpowers/                    Especificacions i plans
+├── native/chrome_audio_capture/
+│   └── ChromeAudioCapture.cs           WASAPI per arbre de processos
 ├── scripts/
-│   ├── build-portable.ps1            Descàrrega, construcció, validació i ZIP
-│   ├── launcher.py                   Punt d’entrada per a PyInstaller
-│   ├── smoke-recording.py            Gravació curta de verificació
-│   └── verify-recording.ps1          Inspecció dels streams resultants
+│   ├── build-chrome-audio.ps1          Compila el helper C# x64
+│   ├── build-portable.ps1              PyInstaller, eines, validació i ZIP
+│   ├── launcher.py                     Entrada de PyInstaller
+│   ├── smoke-recording.py              Gravació real curta
+│   └── verify-recording.ps1            Comprova streams amb ffprobe
 ├── src/bizneo_recorder/
-│   ├── app.py                        Interfície i coordinació asíncrona
-│   ├── ffmpeg.py                     Dispositius DirectShow i comandes FFmpeg
-│   ├── main.py                       Entrada GUI i mode --self-test
-│   ├── models.py                     Presets, configuració i rutes d’eixida
-│   └── recorder.py                   Estat, procés i finalització segura
-└── tests/                             Proves unitàries dels mòduls anteriors
+│   ├── app.py                          UI i coordinació asíncrona
+│   ├── chrome_audio.py                 Client/lifecycle del helper
+│   ├── ffmpeg.py                       Dispositius i ordres FFmpeg
+│   ├── main.py                         Entrada i --self-test
+│   ├── models.py                       Configuració i rutes de sessió
+│   ├── processes.py                    Detecció de l’arrel de Chrome
+│   └── recorder.py                     Estat i finalització segura
+└── tests/                               47 proves Python/helper/UI/build
 ```
 
-`work/` conté descàrregues, entorns i artefactes temporals. `outputs/` conté el paquet portable generat. Ambdues carpetes estan ignorades per Git.
+`work/` conté compilacions i mostres temporals. `outputs/` conté el directori portable i el ZIP. Ambdues carpetes estan ignorades per Git.
 
 ## Flux principal
 
 ```text
-Usuari
-  │ selecciona micròfon i inicia
-  ▼
-app.py ── presets + RecordingConfig ──► recorder.py
-                                  │ construeix arguments
-                                  ▼
-                              ffmpeg.py
-                                  │ executa FFmpeg
-                    ┌─────────────┴─────────────┐
-                    ▼                           ▼
-             gdigrab: pantalla          dshow: micròfon
-                    └─────────────┬─────────────┘
-                                  ▼
-                         fitxer `.part.mp4`
-                                  │ eixida 0 i parada amb `q`
-                                  ▼
-                              fitxer `.mp4`
+Usuari prem Gravar conferència
+        │
+        ▼
+processes.py ──► PID arrel chrome.exe
+        │
+        ▼
+chrome_audio.py ──► chrome-audio-capture.exe
+        │                  │
+        │                  └─ WASAPI includetree ─► .chrome.wav
+        ▼
+recorder.py ──► FFmpeg gdigrab ─► .capture.mkv
+                         └─ dshow micròfon opcional
+
+Usuari prem Finalitzar
+        │
+        ├─ parada ordenada amb q
+        ├─ FFmpeg copia H.264 i codifica AAC
+        ├─ Chrome sol o Chrome + micròfon amb amix
+        ▼
+  .part.mp4 ── promoció atòmica ──► .mp4
 ```
 
-La interfície executa la detecció, l’inici i l’aturada en fils de treball curts; totes les actualitzacions visuals tornen al fil de Tk amb `after`. `Recorder` és l’únic propietari del procés FFmpeg i impedeix dues gravacions simultànies.
+## Límits i responsabilitats
 
-## Decisions tècniques
-
-- `gdigrab` captura exclusivament l’escriptori principal; `dshow` rep exclusivament el nom del micròfon triat.
-- `models.py` defineix les dues resolucions i els dos FPS admesos; `app.py` transforma les etiquetes seleccionades en valors numèrics validats.
-- La resolució final és 1280×720 o 1920×1080, amb escalat proporcional i farciment per evitar deformacions.
-- El fitxer de treball usa `.part.mp4`. Només una eixida correcta de FFmpeg provoca el canvi atòmic al nom final.
-- Els diagnòstics de FFmpeg es drenen en un fil daemon amb memòria limitada, evitant bloquejos per ompliment del pipe.
-- El mode `--self-test` evita obrir la GUI i valida el còdec H.264 i la detecció de micròfons.
+- `processes.py` usa Tool Help per enumerar processos sense PowerShell ni WMI. Si hi ha diverses arrels de Chrome, tria determinísticament l’arbre amb més descendents.
+- `ChromeAudioCapture.cs` rep PID i ruta WAV, exposa un callback COM àgil i captura PCM 44,1 kHz estèreo mitjançant `VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK`.
+- `chrome_audio.py` espera el senyal `READY`, controla temps límit i parada, i valida la capçalera WAV.
+- `ffmpeg.py` separa la captura intermèdia de la combinació final. El vídeo es codifica una sola vegada; la passada final usa `-c:v copy`.
+- `recorder.py` és l’únic propietari dels dos processos. Els temporals només s’eliminen després d’una finalització correcta.
+- `app.py` no enumera micròfons fins que l’usuari activa l’opció.
 
 ## Construcció
 
-`scripts/build-portable.ps1` descarrega el build Essentials de Gyan que figura a la pàgina oficial de descàrregues de FFmpeg, registra el SHA-256, crea un entorn de construcció a `work`, usa PyInstaller 6.21.0 i valida l’estructura abans de comprimir-la.
+`scripts/build-chrome-audio.ps1` usa el compilador x64 inclòs en .NET Framework. `scripts/build-portable.ps1` descarrega el build Essentials de FFmpeg, crea un paquet PyInstaller `onedir`, copia el runtime Python a `_runtime/`, copia les dos eines a `tools/`, executa i espera els autodiagnòstics i genera `outputs/Conference-Recorder-Portable.zip`.
 
-No s’han d’editar manualment els artefactes de `outputs`; cal reconstruir-los amb el script.
+El mode `onedir` evita l’extracció temporal de Tcl/Tk a cada arrancada. L’executable i les carpetes `_runtime/` i `tools/` formen una sola unitat portable i s’han de mantindre juntes.
 
-## Limitacions conegudes
+No s’han d’editar manualment els artefactes d’`outputs`; cal reconstruir-los.
 
-- Només grava la pantalla principal.
-- No captura webcam, àudio del sistema ni anotacions.
-- Les resolucions disponibles són 720p i 1080p; pantalles amb una altra proporció poden mostrar bandes de farciment.
-- 60 FPS requereix més CPU i espai que 30 FPS.
-- L’executable no té una signatura de codi comercial i Windows pot mostrar SmartScreen la primera vegada.
+## Compatibilitat i limitacions
 
+- Windows 10 build 20348 o posterior.
+- Captura tota la pantalla principal, no una finestra o pestanya.
+- Captura tot l’àudio de l’arbre de Chrome; diverses pestanyes actives poden mesclar-se.
+- Chrome ha d’estar obert abans de començar i continuar obert.
+- No captura webcam, anotacions ni altres navegadors.
+- L’executable no té signatura comercial i pot activar SmartScreen.

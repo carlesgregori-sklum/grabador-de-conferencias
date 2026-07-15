@@ -3,13 +3,13 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bizneo-recorder"
-version = "1.0.0"
-description = "Portable Windows screen and microphone recorder"
+name = "conference-recorder"
+version = "2.0.0"
+description = "Portable full-screen and Chrome process-audio recorder for Windows"
 requires-python = ">=3.11"
 
 [project.scripts]
-bizneo-recorder = "bizneo_recorder.main:main"
+conference-recorder = "bizneo_recorder.main:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

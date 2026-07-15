@@ -20,15 +20,18 @@ if ($LASTEXITCODE -ne 0) {
 }
 $probe = $json | ConvertFrom-Json
 $streams = @($probe.streams)
-$video = $streams | Where-Object { $_.codec_type -eq "video" } | Select-Object -First 1
-$audio = $streams | Where-Object { $_.codec_type -eq "audio" } | Select-Object -First 1
+$videos = @($streams | Where-Object { $_.codec_type -eq "video" })
+$audios = @($streams | Where-Object { $_.codec_type -eq "audio" })
 
-if ($null -eq $video) { throw "The recording has no video stream." }
+if ($videos.Count -ne 1) { throw "Expected exactly one video stream; found $($videos.Count)." }
+if ($audios.Count -ne 1) { throw "Expected exactly one audio stream; found $($audios.Count)." }
+$video = $videos[0]
+$audio = $audios[0]
+
 if ($video.codec_name -ne "h264") { throw "Expected H.264 video; found $($video.codec_name)." }
 if ([int]$video.width -ne $ExpectedWidth -or [int]$video.height -ne $ExpectedHeight) {
     throw "Expected ${ExpectedWidth}x${ExpectedHeight} video; found $($video.width)x$($video.height)."
 }
-if ($null -eq $audio) { throw "The recording has no audio stream." }
 if ($audio.codec_name -ne "aac") { throw "Expected AAC audio; found $($audio.codec_name)." }
 if ([double]$probe.format.duration -le 0) { throw "The recording duration is not positive." }
 

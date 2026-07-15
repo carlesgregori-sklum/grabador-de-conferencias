@@ -1,56 +1,65 @@
-# Ús de Bizneo Recorder
+# Ús de Conference Recorder
 
 ## Inici ràpid
 
-1. Descomprimeix `Bizneo-Recorder-Portable.zip` en una carpeta local.
-2. Conserva junts `Bizneo Recorder.exe` i la carpeta `tools`.
-3. Obri `Bizneo Recorder.exe`.
-4. Selecciona el micròfon, la resolució i els FPS.
-5. Prem **Començar gravació**.
-6. Quan acabes l’explicació, recupera l’aplicació des de la barra de tasques i prem **Finalitzar i guardar**.
+1. Descomprimeix `Conference-Recorder-Portable.zip` en una carpeta local.
+2. Conserva junts `Conference Recorder.exe` i les carpetes `_runtime` i `tools`.
+3. Obri Google Chrome i prepara la conferència, webinar o cas de Bizneo.
+4. Obri `Conference Recorder.exe` i comprova que indica **Chrome detectat · àudio preparat**.
+5. Deixa desmarcat **Incloure el meu micròfon** si només vols escoltar la conferència.
+6. Prem **Gravar conferència**. La finestra es minimitzarà.
+7. Quan acabes, recupera l’aplicació des de la barra de tasques i prem **Finalitzar i guardar**.
 
-El resultat queda a `Vídeos\Bizneo Recorder` amb un nom com `Bizneo-2026-07-14-153010.mp4`.
+El resultat queda en `Vídeos\Conference Recorder` amb un nom com `Conference-2026-07-15-153010.mp4`.
 
-## Qualitat de gravació
+## Què es grava
 
-La configuració inicial és **Full HD 1080p · 30 FPS**, recomanada per explicar pantalles de Bizneo amb text nítid i una càrrega moderada.
+- Tota la pantalla principal i el cursor, encara que canvies entre Chrome, Bizneo o altres finestres.
+- L’àudio reproduït pel procés principal de Chrome i els seus processos descendents.
+- El micròfon seleccionat només quan actives explícitament l’opció.
 
-| Selector | Opcions | Ús recomanat |
-|---|---|---|
-| Resolució | HD 720p / Full HD 1080p | 720p crea fitxers més lleugers; 1080p conserva millor el text. |
-| Fluïdesa | 30 FPS / 60 FPS | 30 FPS és suficient per a tutorials; 60 FPS és més fluid però genera fitxers més grans i exigeix més a l’equip. |
+No es grava l’àudio d’altres aplicacions ni les notificacions de Windows. No és una captura d’una pestanya concreta: si tens diverses pestanyes de Chrome reproduint àudio al mateix temps, totes formen part del mateix arbre del navegador.
 
-Els selectors queden bloquejats durant la gravació i es reactiven quan el vídeo queda guardat o es produeix un error.
+## Micròfon opcional
 
-## Perfil tècnic
+El micròfon està desactivat per defecte. En activar-lo apareix el selector; tria el dispositiu que vols mesclar amb Chrome. Si no apareix:
 
-- Pantalla principal completa, cursor inclòs.
-- Resolució final seleccionable: 1280×720 o 1920×1080.
-- Fluïdesa seleccionable: 30 o 60 fotogrames per segon.
-- Vídeo H.264 i àudio AAC.
-- Només el micròfon seleccionat; no grava l’àudio de Windows.
+1. Revisa **Configuració > Privacitat i seguretat > Micròfon**.
+2. Activa l’accés per a aplicacions d’escriptori.
+3. Connecta el dispositiu i prem **Actualitzar**.
+
+## Qualitat
+
+La configuració inicial és **Full HD 1080p · 30 FPS**, recomanada per a conferències i demostracions de Bizneo.
+
+| Opció | Ús |
+|---|---|
+| HD 720p | Fitxer més lleuger i menor càrrega. |
+| Full HD 1080p | Text i detalls més nítids. |
+| 30 FPS | Recomanat per conferències i tutorials. |
+| 60 FPS | Moviment més fluid, més CPU i fitxers més grans. |
 
 ## Privacitat
 
-La captura i la codificació són locals. L’aplicació no puja vídeos ni dades a Internet. El procés de construcció sí que descarrega FFmpeg i PyInstaller; l’aplicació ja construïda no necessita xarxa.
+Tota la captura i codificació és local. L’aplicació no puja vídeos, àudio, diagnòstics ni telemetria. Quan l’opció del micròfon està desmarcada, el dispositiu no s’enumera ni s’obri.
 
 ## Resolució de problemes
 
-### No apareix cap micròfon
+### Chrome no està obert
 
-Obri **Configuració > Privacitat i seguretat > Micròfon** i activa l’accés per a aplicacions d’escriptori. Connecta el dispositiu abans d’obrir el programa i prem **Actualitzar**.
+Obri Chrome i prem **Tornar a comprovar**. Chrome ha d’estar obert abans de començar i no s’ha de tancar durant la gravació.
 
-### Windows mostra una advertència en obrir l’executable
+### Windows no és compatible
 
-L’executable és una aplicació local sense signatura de codi comercial. Verifica que prové del ZIP entregat. Si SmartScreen el bloqueja, usa **Més informació > Executar igualment** només si el fitxer és el lliurat en aquest projecte.
+La captura exclusiva per procés requereix Windows 10 build 20348 o posterior. Executa `Conference Recorder.exe --self-test` per veure el diagnòstic.
 
-### El fitxer acaba en `.part.mp4`
+### Windows mostra SmartScreen
 
-Indica una interrupció o un error de FFmpeg. No l’esborres: pot ser recuperable. Torna a provar una gravació curta després de revisar el micròfon i l’espai lliure.
+L’executable local no té signatura de codi comercial. Verifica que prové del ZIP construït per este projecte. Usa **Més informació > Executar igualment** només amb el paquet verificat.
 
-### El vídeo va lent
+### Queden fitxers `.capture.mkv`, `.chrome.wav` o `.part.mp4`
 
-Tanca aplicacions pesades i deixa uns quants GB lliures. El perfil `veryfast` prioritza una gravació fluida en un equip Full HD.
+Indiquen una interrupció durant captura o combinació. No els esborres immediatament: poden permetre recuperar vídeo o àudio. Prova una gravació curta després de revisar Chrome, espai lliure i el micròfon opcional.
 
 ## Verificació i manteniment
 
@@ -59,5 +68,4 @@ python -m unittest discover -s tests -t . -v
 powershell -ExecutionPolicy Bypass -File scripts/build-portable.ps1
 ```
 
-El script de construcció valida que l’executable, FFmpeg, la llicència i la guia estiguen presents abans de crear el ZIP.
-
+El build compila el helper natiu, crea el paquet PyInstaller `onedir`, valida FFmpeg i Process Loopback, espera que acabe l’autoprova gràfica i només després genera el ZIP.
