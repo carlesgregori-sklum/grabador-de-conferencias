@@ -11,6 +11,7 @@ $archivePath = Join-Path $outputRoot "Grabador-de-conferencias-Portable.zip"
 $ffmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 $ffmpegLicenseUrl = "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n8.1.2/COPYING.GPLv3"
 $pyInstallerVersion = "6.21.0"
+$pillowVersion = "12.1.1"
 
 function Assert-ProjectPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -32,6 +33,7 @@ function Remove-ProjectItem {
 function Assert-PortableLayout {
     $requiredDirectories = @(
         (Join-Path $portableDir "_runtime"),
+        (Join-Path $portableDir "_runtime\PIL"),
         (Join-Path $portableDir "tools")
     )
     foreach ($directory in $requiredDirectories) {
@@ -47,6 +49,7 @@ function Assert-PortableLayout {
         (Join-Path $portableDir "tools\chrome-audio-capture.exe"),
         (Join-Path $portableDir "FFMPEG-LICENSE.txt"),
         (Join-Path $portableDir "FFMPEG-NOTICE.txt"),
+        (Join-Path $portableDir "PILLOW-LICENSE.txt"),
         (Join-Path $portableDir "LEEME.txt")
     )
     foreach ($item in $required) {
@@ -112,7 +115,20 @@ $venvPython = Join-Path $venvDir "Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
     python -m venv $venvDir
 }
-& $venvPython -m pip install --disable-pip-version-check --quiet "pyinstaller==$pyInstallerVersion"
+& $venvPython -m pip install --disable-pip-version-check --quiet `
+    "pyinstaller==$pyInstallerVersion" `
+    "Pillow==$pillowVersion"
+$pillowDistInfo = Get-ChildItem `
+    -LiteralPath (Join-Path $venvDir "Lib\site-packages") `
+    -Directory `
+    -Filter "pillow-*.dist-info" | Select-Object -First 1
+if ($null -eq $pillowDistInfo) {
+    throw "No se encontró la información de licencia de Pillow."
+}
+$pillowLicense = Join-Path $pillowDistInfo.FullName "licenses\LICENSE"
+if (-not (Test-Path -LiteralPath $pillowLicense -PathType Leaf)) {
+    throw "No se encontró la licencia de Pillow: $pillowLicense"
+}
 
 Remove-ProjectItem -Path $pyInstallerRoot
 New-Item -ItemType Directory -Force -Path $pyInstallerRoot | Out-Null
@@ -162,6 +178,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $portableDir "tools") | Out
 Copy-Item -LiteralPath $ffmpegExe.FullName -Destination (Join-Path $portableDir "tools\ffmpeg.exe")
 Copy-Item -LiteralPath $chromeAudioHelper -Destination (Join-Path $portableDir "tools\chrome-audio-capture.exe")
 Copy-Item -LiteralPath $licensePath -Destination (Join-Path $portableDir "FFMPEG-LICENSE.txt")
+Copy-Item -LiteralPath $pillowLicense -Destination (Join-Path $portableDir "PILLOW-LICENSE.txt")
 Copy-Item -LiteralPath (Join-Path $projectRoot "docs\portable-readme.txt") -Destination (Join-Path $portableDir "LEEME.txt")
 
 $notice = @"

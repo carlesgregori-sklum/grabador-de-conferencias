@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "conference-recorder"
-version = "3.0.0"
+version = "3.0.1"
 description = "Grabador portable de pantalla, pestañas de Chrome y audio para Windows"
 requires-python = ">=3.11"
+dependencies = ["Pillow>=12.1,<13"]
 
 [project.scripts]
 conference-recorder = "bizneo_recorder.main:main"

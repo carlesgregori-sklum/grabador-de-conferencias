@@ -48,6 +48,18 @@ class PortableBuildTests(unittest.TestCase):
         self.assertIn('"LEEME.txt"', script)
         self.assertNotIn("LLEGEIX-ME.txt", script)
 
+    def test_installs_and_validates_antialiased_renderer(self) -> None:
+        script = (PROJECT_ROOT / "scripts" / "build-portable.ps1").read_text(
+            encoding="utf-8"
+        )
+        pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+        self.assertIn('"Pillow==', script)
+        self.assertIn('"_runtime\\PIL"', script)
+        self.assertIn('"PILLOW-LICENSE.txt"', script)
+        self.assertIn('"licenses\\LICENSE"', script)
+        self.assertIn('"Pillow>=12.1,<13"', pyproject)
+
 
 if __name__ == "__main__":
     unittest.main()

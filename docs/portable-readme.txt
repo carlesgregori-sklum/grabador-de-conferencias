@@ -43,3 +43,7 @@ o el audio.
 SMARTSCREEN
 El ejecutable no tiene una firma comercial. Usa "Más información > Ejecutar de
 todas formas" únicamente si confías en el ZIP recibido.
+
+LICENCIAS
+El paquete incluye las licencias de FFmpeg y Pillow en los archivos
+FFMPEG-LICENSE.txt y PILLOW-LICENSE.txt.

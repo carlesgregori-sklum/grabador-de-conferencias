@@ -2,7 +2,7 @@
 
 ## Visión general
 
-Grabador de conferencias 3.0 es una aplicación Windows portable con tres fuentes de vídeo. Tkinter coordina el flujo y `ui.py` dibuja la interfaz oscura y sus animaciones con `Canvas`. La captura de la pantalla principal usa FFmpeg `gdigrab`; un monitor o una pestaña se obtienen con `getDisplayMedia` y `MediaRecorder` desde una página local abierta por Chrome. Un helper C# usa WASAPI Process Loopback cuando debe capturarse el audio de todo el árbol de Chrome.
+Grabador de conferencias 3.0.1 es una aplicación Windows portable con tres fuentes de vídeo. Tkinter coordina el flujo y `ui.py` dibuja la interfaz oscura y sus animaciones con `Canvas`. Pillow renderiza las formas a 2×–3× y las reduce con Lanczos para suavizar curvas, diagonales e iconos; el texto continúa en Tk para conservar nitidez y accesibilidad. La captura de la pantalla principal usa FFmpeg `gdigrab`; un monitor o una pestaña se obtienen con `getDisplayMedia` y `MediaRecorder` desde una página local abierta por Chrome. Un helper C# usa WASAPI Process Loopback cuando debe capturarse el audio de todo el árbol de Chrome.
 
 ```text
 Grabador de conferencias
@@ -27,7 +27,7 @@ Grabador de conferencias
 ├── src/bizneo_recorder/
 │   ├── assets/browser_capture.html     Selector, MediaRecorder y envío local
 │   ├── app.py                          Estado de producto y coordinación UI
-│   ├── ui.py                           Paleta y widgets Canvas animados
+│   ├── ui.py                           Widgets animados y render antialias
 │   ├── browser_capture.py              Servidor loopback y fragmentos
 │   ├── chrome_audio.py                 Cliente y ciclo de vida del helper
 │   ├── ffmpeg.py                       Captura y finalización por modo
@@ -35,7 +35,7 @@ Grabador de conferencias
 │   ├── models.py                       Modos, configuración y rutas
 │   ├── processes.py                    Árbol y ejecutable de Chrome
 │   └── recorder.py                     Estado y propiedad de recursos
-└── tests/                               87 pruebas Python, helper, UI y build
+└── tests/                               89 pruebas Python, helper, UI y build
 ```
 
 `work/` contiene compilaciones y muestras temporales. `outputs/` contiene el directorio portable y el ZIP. Ambas carpetas están ignoradas por Git y se regeneran.
@@ -53,7 +53,7 @@ app.py ── actualiza estado ──► ui.py / widgets Canvas
   └── worker de finalización     └── CTA, conmutador y onda ambiental
 ```
 
-Los widgets animados no poseen recursos de captura y no ejecutan trabajo bloqueante. Cada bucle usa `after`, conserva un único callback y lo cancela al destruirse. Las tarjetas ofrecen foco, teclado, marca y borde; la selección no depende solo del color.
+Los widgets animados no poseen recursos de captura y no ejecutan trabajo bloqueante. Cada bucle usa `after`, conserva un único callback y lo cancela al destruirse. `AntialiasedCanvas` compone las formas con Pillow en una imagen supermuestreada y mantiene el texto como capa nativa de Tk. Las tarjetas ofrecen foco, teclado, marca y borde; la selección no depende solo del color.
 
 `app.py` mantiene los estados de producto `LISTO`, preparación, grabación, guardado y error. Durante una sesión bloquea fuente, micrófono, calidad y carpeta sin bloquear el hilo principal. La ventana parte de una altura compacta de 810 px y anima su expansión a 880 px cuando aparecen los controles del micrófono, de modo que el CTA y el estado inferior nunca quedan recortados.
 
@@ -96,7 +96,7 @@ La página usa la misma paleta coral/violeta, animaciones CSS y `prefers-reduced
 
 ## Responsabilidades
 
-- `ui.py`: color, dibujo y widgets animados sin lógica de captura.
+- `ui.py`: color, supermuestreo Pillow, dibujo y widgets animados sin lógica de captura.
 - `app.py`: experiencia, textos, selección de carpeta y coordinación asíncrona.
 - `processes.py`: procesos de Chrome y ruta del ejecutable.
 - `ChromeAudioCapture.cs`: PCM 44,1 kHz estéreo mediante `VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK`.
@@ -107,7 +107,7 @@ La página usa la misma paleta coral/violeta, animaciones CSS y `prefers-reduced
 
 ## Construcción y distribución
 
-`scripts/build-portable.ps1` compila el helper x64, incorpora el build Essentials de FFmpeg, crea un paquete PyInstaller `onedir`, ejecuta autodiagnósticos, valida el layout y genera `outputs/Grabador-de-conferencias-Portable.zip`.
+`scripts/build-portable.ps1` compila el helper x64, incorpora el build Essentials de FFmpeg y Pillow 12.1.1 con sus licencias, crea un paquete PyInstaller `onedir`, ejecuta autodiagnósticos, valida el layout —incluido el runtime `PIL`— y genera `outputs/Grabador-de-conferencias-Portable.zip`.
 
 El modo `onedir` evita la extracción temporal de Tcl/Tk. `Grabador de conferencias.exe`, `_runtime/` y `tools/` forman una unidad portable y deben mantenerse juntos. `LEEME.txt` explica el uso a RRHH.
 

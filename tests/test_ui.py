@@ -10,6 +10,7 @@ from bizneo_recorder.ui import (
     ToggleSwitch,
     WaveformIndicator,
     blend_color,
+    render_supersampled,
     rounded_rectangle_points,
 )
 
@@ -28,6 +29,25 @@ class UiDrawingTests(unittest.TestCase):
         self.assertLessEqual(max(points[0::2]), 100)
         self.assertGreaterEqual(min(points[1::2]), 0)
         self.assertLessEqual(max(points[1::2]), 50)
+
+    def test_supersampled_render_blends_curved_edges(self) -> None:
+        image = render_supersampled(
+            18,
+            18,
+            "#000000",
+            lambda drawing: drawing.ellipse((3, 3, 15, 15), fill="#FFFFFF"),
+            scale=4,
+        )
+
+        self.assertEqual(image.size, (18, 18))
+        channels = {
+            image.getpixel((x, y))[0]
+            for y in range(image.height)
+            for x in range(image.width)
+        }
+        self.assertIn(0, channels)
+        self.assertIn(255, channels)
+        self.assertTrue(any(0 < channel < 255 for channel in channels))
 
 
 class UiWidgetTests(unittest.TestCase):

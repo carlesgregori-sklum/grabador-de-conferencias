@@ -5,6 +5,8 @@ import time
 import tkinter as tk
 from collections.abc import Callable
 
+from PIL import Image, ImageDraw, ImageTk
+
 
 BACKGROUND = "#0B0C10"
 SURFACE = "#151720"
@@ -20,6 +22,118 @@ VIOLET = "#8B5CF6"
 GREEN = "#55E6A5"
 AMBER = "#F6B94A"
 ERROR = "#FF7479"
+
+
+class SmoothDrawing:
+    """Scale Pillow primitives so their final reduction keeps soft edges."""
+
+    def __init__(self, drawing: ImageDraw.ImageDraw, scale: int) -> None:
+        self.drawing = drawing
+        self.scale = scale
+
+    def _coordinates(self, values: tuple[float, ...] | list[float]) -> tuple[int, ...]:
+        return tuple(round(value * self.scale) for value in values)
+
+    def _width(self, width: float) -> int:
+        return max(1, round(width * self.scale))
+
+    def ellipse(
+        self,
+        bounds: tuple[float, float, float, float],
+        *,
+        fill: str | None = None,
+        outline: str | None = None,
+        width: float = 1,
+    ) -> None:
+        self.drawing.ellipse(
+            self._coordinates(bounds),
+            fill=fill,
+            outline=outline,
+            width=self._width(width),
+        )
+
+    def rectangle(
+        self,
+        bounds: tuple[float, float, float, float],
+        *,
+        fill: str | None = None,
+        outline: str | None = None,
+        width: float = 1,
+    ) -> None:
+        self.drawing.rectangle(
+            self._coordinates(bounds),
+            fill=fill,
+            outline=outline,
+            width=self._width(width),
+        )
+
+    def rounded_rectangle(
+        self,
+        bounds: tuple[float, float, float, float],
+        *,
+        radius: float,
+        fill: str | None = None,
+        outline: str | None = None,
+        width: float = 1,
+    ) -> None:
+        self.drawing.rounded_rectangle(
+            self._coordinates(bounds),
+            radius=round(radius * self.scale),
+            fill=fill,
+            outline=outline,
+            width=self._width(width),
+        )
+
+    def line(
+        self,
+        points: tuple[float, ...] | list[float],
+        *,
+        fill: str,
+        width: float = 1,
+    ) -> None:
+        self.drawing.line(
+            self._coordinates(points),
+            fill=fill,
+            width=self._width(width),
+            joint="curve",
+        )
+
+
+def render_supersampled(
+    width: int,
+    height: int,
+    background: str,
+    painter: Callable[[SmoothDrawing], None],
+    *,
+    scale: int = 3,
+) -> Image.Image:
+    """Render at a larger resolution and reduce with Lanczos antialiasing."""
+    if width <= 0 or height <= 0:
+        raise ValueError("el tamaño de renderizado debe ser positivo")
+    if scale < 2:
+        raise ValueError("el factor de supermuestreo debe ser al menos 2")
+    source = Image.new("RGB", (width * scale, height * scale), background)
+    painter(SmoothDrawing(ImageDraw.Draw(source), scale))
+    return source.resize((width, height), Image.Resampling.LANCZOS)
+
+
+class AntialiasedCanvas(tk.Canvas):
+    """Canvas that presents supersampled Pillow artwork with native Tk text."""
+
+    _render_photo: ImageTk.PhotoImage | None = None
+
+    def _render_artwork(
+        self,
+        background: str,
+        painter: Callable[[SmoothDrawing], None],
+        *,
+        scale: int,
+    ) -> None:
+        width = int(self.cget("width"))
+        height = int(self.cget("height"))
+        image = render_supersampled(width, height, background, painter, scale=scale)
+        self._render_photo = ImageTk.PhotoImage(image, master=self)
+        self.create_image(0, 0, anchor="nw", image=self._render_photo)
 
 
 def blend_color(start: str, end: str, amount: float) -> str:
@@ -52,12 +166,15 @@ def rounded_rectangle_points(
         for step in range(6):
             angle = math.radians(start_angle + step * 18)
             points.extend(
-                (center_x + radius * math.cos(angle), center_y + radius * math.sin(angle))
+                (
+                    center_x + radius * math.cos(angle),
+                    center_y + radius * math.sin(angle),
+                )
             )
     return tuple(points)
 
 
-class CaptureCard(tk.Canvas):
+class CaptureCard(AntialiasedCanvas):
     """Keyboard-accessible source card with hover and selected states."""
 
     def __init__(
@@ -140,25 +257,38 @@ class CaptureCard(tk.Canvas):
         if self.selected:
             outline = blend_color(CORAL, VIOLET, 0.45)
             outline_width = 3
-            self.create_polygon(
-                rounded_rectangle_points(2, 2, width - 2, height - 2, 17),
-                fill=blend_color(SURFACE, VIOLET, 0.08),
-                outline="",
-                smooth=True,
-            )
         elif self.focused:
             outline = VIOLET
             outline_width = 2
-        self.create_polygon(
-            rounded_rectangle_points(4, 4, width - 4, height - 4, 15),
-            fill=fill,
-            outline=outline,
-            width=outline_width,
-            smooth=True,
-            splinesteps=24,
-        )
         icon_color = CORAL if self.selected else (MUTED if self.enabled else SUBTLE)
-        self._draw_icon(width / 2, 36, icon_color)
+
+        def paint(drawing: SmoothDrawing) -> None:
+            if self.selected:
+                drawing.rounded_rectangle(
+                    (2, 2, width - 2, height - 2),
+                    radius=17,
+                    fill=blend_color(SURFACE, VIOLET, 0.08),
+                )
+            drawing.rounded_rectangle(
+                (4, 4, width - 4, height - 4),
+                radius=15,
+                fill=fill,
+                outline=outline,
+                width=outline_width,
+            )
+            self._draw_icon(drawing, width / 2, 36, icon_color)
+            if self.selected:
+                drawing.ellipse(
+                    (width - 31, 13, width - 13, 31),
+                    fill=CORAL,
+                )
+                drawing.line(
+                    (width - 27, 22, width - 23, 26, width - 17, 18),
+                    fill=TEXT,
+                    width=2,
+                )
+
+        self._render_artwork(BACKGROUND, paint, scale=3)
         text_color = TEXT if self.enabled else SUBTLE
         self.create_text(
             width / 2,
@@ -174,57 +304,58 @@ class CaptureCard(tk.Canvas):
             fill=MUTED if self.enabled else SUBTLE,
             font=("Segoe UI", 8),
         )
-        if self.selected:
-            self.create_oval(width - 31, 13, width - 13, 31, fill=CORAL, outline="")
-            self.create_line(
-                width - 27,
-                22,
-                width - 23,
-                26,
-                width - 17,
-                18,
-                fill=TEXT,
-                width=2,
-                capstyle="round",
-                joinstyle="round",
-            )
 
-    def _draw_icon(self, center_x: float, center_y: float, color: str) -> None:
+    def _draw_icon(
+        self,
+        drawing: SmoothDrawing,
+        center_x: float,
+        center_y: float,
+        color: str,
+    ) -> None:
         if self.icon in {"monitor", "screen"}:
-            self.create_rectangle(
-                center_x - 22,
-                center_y - 15,
-                center_x + 22,
-                center_y + 12,
+            drawing.rectangle(
+                (center_x - 22, center_y - 15, center_x + 22, center_y + 12),
                 outline=color,
                 width=2,
             )
-            self.create_line(center_x, center_y + 12, center_x, center_y + 18, fill=color, width=2)
-            self.create_line(center_x - 11, center_y + 18, center_x + 11, center_y + 18, fill=color, width=2)
+            drawing.line(
+                (center_x, center_y + 12, center_x, center_y + 18),
+                fill=color,
+                width=2,
+            )
+            drawing.line(
+                (center_x - 11, center_y + 18, center_x + 11, center_y + 18),
+                fill=color,
+                width=2,
+            )
             if self.icon == "screen":
-                self.create_line(center_x - 14, center_y - 8, center_x + 14, center_y - 8, fill=color)
+                drawing.line(
+                    (center_x - 14, center_y - 8, center_x + 14, center_y - 8),
+                    fill=color,
+                )
         else:
-            self.create_rectangle(
-                center_x - 23,
-                center_y - 16,
-                center_x + 23,
-                center_y + 14,
+            drawing.rectangle(
+                (center_x - 23, center_y - 16, center_x + 23, center_y + 14),
                 outline=color,
                 width=2,
             )
-            self.create_line(center_x - 23, center_y - 8, center_x + 23, center_y - 8, fill=color)
+            drawing.line(
+                (center_x - 23, center_y - 8, center_x + 23, center_y - 8),
+                fill=color,
+            )
             for offset in (-16, -10, -4):
-                self.create_oval(
-                    center_x + offset - 1,
-                    center_y - 13,
-                    center_x + offset + 1,
-                    center_y - 11,
+                drawing.ellipse(
+                    (
+                        center_x + offset - 1,
+                        center_y - 13,
+                        center_x + offset + 1,
+                        center_y - 11,
+                    ),
                     fill=color,
-                    outline="",
                 )
 
 
-class ToggleSwitch(tk.Canvas):
+class ToggleSwitch(AntialiasedCanvas):
     """A small animated switch backed by a BooleanVar."""
 
     def __init__(
@@ -285,15 +416,18 @@ class ToggleSwitch(tk.Canvas):
         track = CORAL if active else BORDER
         if not self.enabled:
             track = blend_color(BACKGROUND, track, 0.45)
-        self.create_polygon(
-            rounded_rectangle_points(2, 3, 50, 27, 12),
-            fill=track,
-            outline="",
-            smooth=True,
-        )
         knob_x = 15 + (22 * self._knob_position)
         knob = TEXT if self.enabled else SUBTLE
-        self.create_oval(knob_x - 9, 6, knob_x + 9, 24, fill=knob, outline="")
+
+        def paint(drawing: SmoothDrawing) -> None:
+            drawing.rounded_rectangle(
+                (2, 3, 50, 27),
+                radius=12,
+                fill=track,
+            )
+            drawing.ellipse((knob_x - 9, 6, knob_x + 9, 24), fill=knob)
+
+        self._render_artwork(SURFACE, paint, scale=3)
 
     def _on_destroy(self, event: tk.Event[tk.Misc]) -> None:
         if event.widget is self and self._animation_job is not None:
@@ -304,7 +438,7 @@ class ToggleSwitch(tk.Canvas):
             self._animation_job = None
 
 
-class WaveformIndicator(tk.Canvas):
+class WaveformIndicator(AntialiasedCanvas):
     """Decorative low-amplitude waveform that reflects microphone state."""
 
     def __init__(
@@ -343,26 +477,26 @@ class WaveformIndicator(tk.Canvas):
         center_y = height / 2
         elapsed = time.monotonic() - self._started_at
         bars = 30
-        for index in range(bars):
-            x = 4 + index * ((width - 8) / (bars - 1))
-            wave = (
-                math.sin(index * 1.18 + elapsed * 4.2)
-                + math.sin(index * 0.52 - elapsed * 2.1)
-            ) / 2
-            amplitude = (4 + abs(wave) * 9) if self.active else 2 + abs(wave) * 2
-            amount = index / (bars - 1)
-            color = blend_color(VIOLET, CORAL, amount)
-            if not self.active:
-                color = blend_color(SURFACE, color, 0.32)
-            self.create_line(
-                x,
-                center_y - amplitude,
-                x,
-                center_y + amplitude,
-                fill=color,
-                width=2,
-                capstyle="round",
-            )
+
+        def paint(drawing: SmoothDrawing) -> None:
+            for index in range(bars):
+                x = 4 + index * ((width - 8) / (bars - 1))
+                wave = (
+                    math.sin(index * 1.18 + elapsed * 4.2)
+                    + math.sin(index * 0.52 - elapsed * 2.1)
+                ) / 2
+                amplitude = (4 + abs(wave) * 9) if self.active else 2 + abs(wave) * 2
+                amount = index / (bars - 1)
+                color = blend_color(VIOLET, CORAL, amount)
+                if not self.active:
+                    color = blend_color(SURFACE, color, 0.32)
+                drawing.line(
+                    (x, center_y - amplitude, x, center_y + amplitude),
+                    fill=color,
+                    width=2,
+                )
+
+        self._render_artwork(SURFACE, paint, scale=2)
 
     def _on_destroy(self, event: tk.Event[tk.Misc]) -> None:
         if event.widget is self and self.animation_job is not None:
@@ -373,7 +507,7 @@ class WaveformIndicator(tk.Canvas):
             self.animation_job = None
 
 
-class AnimatedActionButton(tk.Canvas):
+class AnimatedActionButton(AntialiasedCanvas):
     """Primary action with a restrained breathing border and clear state API."""
 
     def __init__(
@@ -474,7 +608,9 @@ class AnimatedActionButton(tk.Canvas):
         height = int(self.cget("height"))
         elapsed = time.monotonic() - self._started_at
         pulse = (math.sin(elapsed * 2.2) + 1) / 2
-        primary = CORAL if self.variant != "danger" else blend_color(CORAL, "#E2353D", 0.45)
+        primary = (
+            CORAL if self.variant != "danger" else blend_color(CORAL, "#E2353D", 0.45)
+        )
         if self.hovered and self.state == "normal":
             primary = blend_color(primary, "#FFFFFF", 0.08)
         if self._pressed:
@@ -482,23 +618,35 @@ class AnimatedActionButton(tk.Canvas):
         if self.state != "normal":
             primary = blend_color(SURFACE, SUBTLE, 0.32)
         glow = blend_color(BACKGROUND, VIOLET, 0.12 + pulse * 0.08)
-        self.create_polygon(
-            rounded_rectangle_points(1, 1, width - 1, height - 1, 17),
-            fill=glow,
-            outline="",
-            smooth=True,
-        )
-        outline = TEXT if self.focused else blend_color(CORAL, VIOLET, 0.30 + pulse * 0.25)
-        self.create_polygon(
-            rounded_rectangle_points(4, 4, width - 4, height - 4, 15),
-            fill=primary,
-            outline=outline,
-            width=2 if self.focused else 1,
-            smooth=True,
+        outline = (
+            TEXT if self.focused else blend_color(CORAL, VIOLET, 0.30 + pulse * 0.25)
         )
         center_x = width / 2
-        self.create_oval(center_x - 102, height / 2 - 10, center_x - 82, height / 2 + 10, outline=TEXT, width=2)
-        self.create_oval(center_x - 96, height / 2 - 4, center_x - 88, height / 2 + 4, fill=TEXT, outline="")
+
+        def paint(drawing: SmoothDrawing) -> None:
+            drawing.rounded_rectangle(
+                (1, 1, width - 1, height - 1),
+                radius=17,
+                fill=glow,
+            )
+            drawing.rounded_rectangle(
+                (4, 4, width - 4, height - 4),
+                radius=15,
+                fill=primary,
+                outline=outline,
+                width=2 if self.focused else 1,
+            )
+            drawing.ellipse(
+                (center_x - 102, height / 2 - 10, center_x - 82, height / 2 + 10),
+                outline=TEXT,
+                width=2,
+            )
+            drawing.ellipse(
+                (center_x - 96, height / 2 - 4, center_x - 88, height / 2 + 4),
+                fill=TEXT,
+            )
+
+        self._render_artwork(BACKGROUND, paint, scale=2)
         self.create_text(
             center_x + 16,
             height / 2,
@@ -516,7 +664,7 @@ class AnimatedActionButton(tk.Canvas):
             self.animation_job = None
 
 
-class OrbitalRecorder(tk.Canvas):
+class OrbitalRecorder(AntialiasedCanvas):
     """Animated visual anchor that communicates recorder state."""
 
     STATE_COLORS = {
@@ -568,50 +716,80 @@ class OrbitalRecorder(tk.Canvas):
         state_color = self.STATE_COLORS[self.state]
         pulse_speed = 4.2 if self.state == "recording" else 1.8
         pulse = (math.sin(elapsed * pulse_speed) + 1) / 2
-
-        for radius, amount in ((52, 0.08), (45, 0.14), (38, 0.24)):
-            self.create_oval(
-                center_x - radius,
-                center_y - radius,
-                center_x + radius,
-                center_y + radius,
-                fill=blend_color(BACKGROUND, state_color, amount + pulse * 0.05),
-                outline="",
-            )
-
         orbit_a = self._ellipse_points(center_x, center_y, 210, 49, -0.16)
         orbit_b = self._ellipse_points(center_x, center_y, 178, 68, 0.18)
-        self.create_line(*orbit_a, fill=blend_color(BACKGROUND, CORAL, 0.58), width=2, smooth=True)
-        self.create_line(*orbit_b, fill=blend_color(BACKGROUND, VIOLET, 0.56), width=2, smooth=True)
-
-        for angle, radius_x, radius_y, rotation, color in (
-            (elapsed * 0.8, 210, 49, -0.16, CORAL),
-            (-elapsed * 0.55 + 2.2, 178, 68, 0.18, VIOLET),
-        ):
-            dot_x, dot_y = self._ellipse_position(
-                center_x, center_y, radius_x, radius_y, rotation, angle
+        orbit_dots = tuple(
+            (
+                self._ellipse_position(
+                    center_x,
+                    center_y,
+                    radius_x,
+                    radius_y,
+                    rotation,
+                    angle,
+                ),
+                color,
             )
-            self.create_oval(dot_x - 5, dot_y - 5, dot_x + 5, dot_y + 5, fill=color, outline="")
-
+            for angle, radius_x, radius_y, rotation, color in (
+                (elapsed * 0.8, 210, 49, -0.16, CORAL),
+                (-elapsed * 0.55 + 2.2, 178, 68, 0.18, VIOLET),
+            )
+        )
         ring_color = blend_color(state_color, TEXT, 0.15)
-        self.create_oval(
-            center_x - 47,
-            center_y - 47,
-            center_x + 47,
-            center_y + 47,
-            outline=ring_color,
-            width=3,
-        )
         dot_radius = 17 + pulse * (3 if self.state == "recording" else 1.5)
-        self.create_oval(
-            center_x - dot_radius,
-            center_y - dot_radius,
-            center_x + dot_radius,
-            center_y + dot_radius,
-            fill=state_color,
-            outline=blend_color(state_color, TEXT, 0.28),
-            width=1,
-        )
+
+        def paint(drawing: SmoothDrawing) -> None:
+            for radius, amount in ((52, 0.08), (45, 0.14), (38, 0.24)):
+                drawing.ellipse(
+                    (
+                        center_x - radius,
+                        center_y - radius,
+                        center_x + radius,
+                        center_y + radius,
+                    ),
+                    fill=blend_color(
+                        BACKGROUND,
+                        state_color,
+                        amount + pulse * 0.05,
+                    ),
+                )
+            drawing.line(
+                orbit_a,
+                fill=blend_color(BACKGROUND, CORAL, 0.58),
+                width=2,
+            )
+            drawing.line(
+                orbit_b,
+                fill=blend_color(BACKGROUND, VIOLET, 0.56),
+                width=2,
+            )
+            for (dot_x, dot_y), color in orbit_dots:
+                drawing.ellipse(
+                    (dot_x - 5, dot_y - 5, dot_x + 5, dot_y + 5),
+                    fill=color,
+                )
+            drawing.ellipse(
+                (
+                    center_x - 47,
+                    center_y - 47,
+                    center_x + 47,
+                    center_y + 47,
+                ),
+                outline=ring_color,
+                width=3,
+            )
+            drawing.ellipse(
+                (
+                    center_x - dot_radius,
+                    center_y - dot_radius,
+                    center_x + dot_radius,
+                    center_y + dot_radius,
+                ),
+                fill=state_color,
+                outline=blend_color(state_color, TEXT, 0.28),
+            )
+
+        self._render_artwork(BACKGROUND, paint, scale=2)
 
     @staticmethod
     def _ellipse_position(
