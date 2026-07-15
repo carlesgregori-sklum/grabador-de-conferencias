@@ -1,0 +1,118 @@
+from __future__ import annotations
+
+import tkinter as tk
+import unittest
+
+from bizneo_recorder.ui import (
+    AnimatedActionButton,
+    CaptureCard,
+    OrbitalRecorder,
+    ToggleSwitch,
+    blend_color,
+    rounded_rectangle_points,
+)
+
+
+class UiDrawingTests(unittest.TestCase):
+    def test_blend_color_interpolates_and_clamps(self) -> None:
+        self.assertEqual(blend_color("#000000", "#FFFFFF", 0.5), "#808080")
+        self.assertEqual(blend_color("#112233", "#FFFFFF", -1), "#112233")
+        self.assertEqual(blend_color("#000000", "#ABCDEF", 2), "#ABCDEF")
+
+    def test_rounded_rectangle_points_stay_inside_bounds(self) -> None:
+        points = rounded_rectangle_points(0, 0, 100, 50, 12)
+
+        self.assertGreater(len(points), 16)
+        self.assertGreaterEqual(min(points[0::2]), 0)
+        self.assertLessEqual(max(points[0::2]), 100)
+        self.assertGreaterEqual(min(points[1::2]), 0)
+        self.assertLessEqual(max(points[1::2]), 50)
+
+
+class UiWidgetTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.root = tk.Tk()
+        self.root.withdraw()
+
+    def tearDown(self) -> None:
+        self.root.destroy()
+
+    def test_capture_card_exposes_selection_and_activation(self) -> None:
+        activations: list[str] = []
+        card = CaptureCard(
+            self.root,
+            label="Pestaña de Chrome",
+            detail="Audio de la pestaña",
+            icon="tab",
+            command=lambda: activations.append("tab"),
+        )
+
+        card.set_selected(True)
+        card.invoke()
+
+        self.assertTrue(card.selected)
+        self.assertEqual(activations, ["tab"])
+        self.assertEqual(card.cget("takefocus"), "1")
+
+    def test_disabled_capture_card_does_not_activate(self) -> None:
+        activations: list[bool] = []
+        card = CaptureCard(
+            self.root,
+            label="Pantalla completa",
+            detail="Sin selector",
+            icon="monitor",
+            command=lambda: activations.append(True),
+        )
+
+        card.set_enabled(False)
+        card.invoke()
+
+        self.assertEqual(activations, [])
+
+    def test_toggle_switch_updates_variable_and_runs_command(self) -> None:
+        variable = tk.BooleanVar(value=False)
+        values: list[bool] = []
+        toggle = ToggleSwitch(
+            self.root,
+            variable=variable,
+            command=lambda: values.append(variable.get()),
+        )
+
+        toggle.invoke()
+
+        self.assertTrue(variable.get())
+        self.assertEqual(values, [True])
+
+    def test_action_button_tracks_text_variant_and_disabled_state(self) -> None:
+        activations: list[bool] = []
+        button = AnimatedActionButton(
+            self.root,
+            text="Iniciar grabación",
+            command=lambda: activations.append(True),
+        )
+
+        button.set(text="Finalizar y guardar", variant="danger", state="disabled")
+        button.invoke()
+
+        self.assertEqual(button.text, "Finalizar y guardar")
+        self.assertEqual(button.variant, "danger")
+        self.assertEqual(button.state, "disabled")
+        self.assertEqual(activations, [])
+
+        button.set(state="normal")
+        button.invoke()
+        self.assertEqual(activations, [True])
+
+    def test_orbital_recorder_changes_state_without_restarting_loop(self) -> None:
+        orb = OrbitalRecorder(self.root)
+        animation_job = orb.animation_job
+
+        orb.set_state("recording")
+
+        self.assertEqual(orb.state, "recording")
+        self.assertIsNotNone(animation_job)
+        self.assertEqual(orb.animation_job, animation_job)
+
+
+if __name__ == "__main__":
+    unittest.main()
