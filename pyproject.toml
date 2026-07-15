@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "conference-recorder"
-version = "2.1.0"
-description = "Portable selectable screen and Chrome-tab recorder for Windows"
+version = "3.0.0"
+description = "Grabador portable de pantalla, pestañas de Chrome y audio para Windows"
 requires-python = ">=3.11"
 
 [project.scripts]

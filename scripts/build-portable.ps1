@@ -6,8 +6,8 @@ $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $workRoot = Join-Path $projectRoot "work\portable-build"
 $outputRoot = Join-Path $projectRoot "outputs"
-$portableDir = Join-Path $outputRoot "Conference Recorder"
-$archivePath = Join-Path $outputRoot "Conference-Recorder-Portable.zip"
+$portableDir = Join-Path $outputRoot "Grabador de conferencias"
+$archivePath = Join-Path $outputRoot "Grabador-de-conferencias-Portable.zip"
 $ffmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 $ffmpegLicenseUrl = "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n8.1.2/COPYING.GPLv3"
 $pyInstallerVersion = "6.21.0"
@@ -17,7 +17,7 @@ function Assert-ProjectPath {
     $fullPath = [System.IO.Path]::GetFullPath($Path)
     $prefix = $projectRoot.TrimEnd("\") + "\"
     if (-not $fullPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing to modify a path outside the project: $fullPath"
+        throw "Se ha rechazado una ruta fuera del proyecto: $fullPath"
     }
 }
 
@@ -36,22 +36,22 @@ function Assert-PortableLayout {
     )
     foreach ($directory in $requiredDirectories) {
         if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
-            throw "Portable package is incomplete. Missing directory: $directory"
+            throw "El paquete portable está incompleto. Falta la carpeta: $directory"
         }
     }
 
     $required = @(
-        (Join-Path $portableDir "Conference Recorder.exe"),
+        (Join-Path $portableDir "Grabador de conferencias.exe"),
         (Join-Path $portableDir "_runtime\bizneo_recorder\assets\browser_capture.html"),
         (Join-Path $portableDir "tools\ffmpeg.exe"),
         (Join-Path $portableDir "tools\chrome-audio-capture.exe"),
         (Join-Path $portableDir "FFMPEG-LICENSE.txt"),
         (Join-Path $portableDir "FFMPEG-NOTICE.txt"),
-        (Join-Path $portableDir "LLEGEIX-ME.txt")
+        (Join-Path $portableDir "LEEME.txt")
     )
     foreach ($item in $required) {
         if (-not (Test-Path -LiteralPath $item -PathType Leaf)) {
-            throw "Portable package is incomplete. Missing: $item"
+            throw "El paquete portable está incompleto. Falta: $item"
         }
     }
 }
@@ -64,16 +64,16 @@ function Invoke-Download {
     & curl.exe --fail --location --silent --show-error --ssl-revoke-best-effort --output $Destination $Uri
     if ($LASTEXITCODE -ne 0) {
         Remove-ProjectItem -Path $Destination
-        throw ("Download failed with exit code {0}: {1}" -f $LASTEXITCODE, $Uri)
+        throw ("La descarga falló con el código {0}: {1}" -f $LASTEXITCODE, $Uri)
     }
     if (-not (Test-Path -LiteralPath $Destination -PathType Leaf) -or (Get-Item -LiteralPath $Destination).Length -eq 0) {
-        throw "Download produced an empty file: $Uri"
+        throw "La descarga produjo un archivo vacío: $Uri"
     }
 }
 
 if ($ValidateOnly) {
     Assert-PortableLayout
-    Write-Host "Portable package layout is complete."
+    Write-Host "La estructura del paquete portable está completa."
     exit 0
 }
 
@@ -90,7 +90,7 @@ if (
     -not (Test-Path -LiteralPath $ffmpegArchive -PathType Leaf) -or
     (Get-Item -LiteralPath $ffmpegArchive).Length -eq 0
 ) {
-    Write-Host "Downloading FFmpeg from the Windows build linked by ffmpeg.org..."
+    Write-Host "Descargando la compilación de FFmpeg enlazada por ffmpeg.org..."
     Invoke-Download -Uri $ffmpegUrl -Destination $ffmpegArchive
 }
 $ffmpegHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ffmpegArchive).Hash
@@ -100,7 +100,7 @@ New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
 Expand-Archive -LiteralPath $ffmpegArchive -DestinationPath $extractDir -Force
 $ffmpegExe = Get-ChildItem -LiteralPath $extractDir -Recurse -Filter "ffmpeg.exe" -File | Select-Object -First 1
 if ($null -eq $ffmpegExe) {
-    throw "The downloaded FFmpeg archive does not contain ffmpeg.exe."
+    throw "El archivo descargado de FFmpeg no contiene ffmpeg.exe."
 }
 
 $licensePath = Join-Path $downloadDir "FFMPEG-LICENSE.txt"
@@ -123,15 +123,15 @@ New-Item -ItemType Directory -Force -Path $distDir, $buildDir, $specDir | Out-Nu
 
 New-Item -ItemType Directory -Force -Path $nativeRoot | Out-Null
 $chromeAudioHelper = Join-Path $nativeRoot "chrome-audio-capture.exe"
-Write-Host "Building the Chrome process-loopback helper..."
+Write-Host "Compilando el capturador de audio de Chrome por proceso..."
 & powershell -NoProfile -ExecutionPolicy Bypass `
     -File (Join-Path $projectRoot "scripts\build-chrome-audio.ps1") `
     -OutputPath $chromeAudioHelper
 if ($LASTEXITCODE -ne 0) {
-    throw "Chrome audio helper build failed with exit code $LASTEXITCODE."
+    throw "La compilación del capturador de Chrome falló con el código $LASTEXITCODE."
 }
 
-Write-Host "Building the portable Windows executable..."
+Write-Host "Construyendo el ejecutable portable para Windows..."
 & $venvPython -m PyInstaller `
     --noconfirm `
     --clean `
@@ -139,7 +139,7 @@ Write-Host "Building the portable Windows executable..."
     --contents-directory "_runtime" `
     --windowed `
     --noupx `
-    --name "Conference Recorder" `
+    --name "Grabador de conferencias" `
     --paths (Join-Path $projectRoot "src") `
     --add-data "$projectRoot\src\bizneo_recorder\assets;bizneo_recorder\assets" `
     --distpath $distDir `
@@ -147,12 +147,12 @@ Write-Host "Building the portable Windows executable..."
     --specpath $specDir `
     (Join-Path $projectRoot "scripts\launcher.py")
 if ($LASTEXITCODE -ne 0) {
-    throw "PyInstaller failed with exit code $LASTEXITCODE."
+    throw "PyInstaller falló con el código $LASTEXITCODE."
 }
 
-$bundleDir = Join-Path $distDir "Conference Recorder"
+$bundleDir = Join-Path $distDir "Grabador de conferencias"
 if (-not (Test-Path -LiteralPath $bundleDir -PathType Container)) {
-    throw "PyInstaller bundle not found: $bundleDir"
+    throw "No se encontró el paquete de PyInstaller: $bundleDir"
 }
 
 Remove-ProjectItem -Path $portableDir
@@ -162,39 +162,39 @@ New-Item -ItemType Directory -Force -Path (Join-Path $portableDir "tools") | Out
 Copy-Item -LiteralPath $ffmpegExe.FullName -Destination (Join-Path $portableDir "tools\ffmpeg.exe")
 Copy-Item -LiteralPath $chromeAudioHelper -Destination (Join-Path $portableDir "tools\chrome-audio-capture.exe")
 Copy-Item -LiteralPath $licensePath -Destination (Join-Path $portableDir "FFMPEG-LICENSE.txt")
-Copy-Item -LiteralPath (Join-Path $projectRoot "docs\portable-readme.txt") -Destination (Join-Path $portableDir "LLEGEIX-ME.txt")
+Copy-Item -LiteralPath (Join-Path $projectRoot "docs\portable-readme.txt") -Destination (Join-Path $portableDir "LEEME.txt")
 
 $notice = @"
-Conference Recorder includes an FFmpeg executable.
+Grabador de conferencias incluye un ejecutable de FFmpeg.
 
-Windows build source: $ffmpegUrl
-FFmpeg project: https://ffmpeg.org/
-Downloaded archive SHA-256: $ffmpegHash
-License text: FFMPEG-LICENSE.txt
+Fuente de la compilación para Windows: $ffmpegUrl
+Proyecto FFmpeg: https://ffmpeg.org/
+SHA-256 del archivo descargado: $ffmpegHash
+Texto de la licencia: FFMPEG-LICENSE.txt
 
-FFmpeg is a separate program and is not part of the Conference Recorder source code.
+FFmpeg es un programa independiente y no forma parte del código fuente del Grabador de conferencias.
 "@
 Set-Content -LiteralPath (Join-Path $portableDir "FFMPEG-NOTICE.txt") -Value $notice -Encoding UTF8
 
 Assert-PortableLayout
 & (Join-Path $portableDir "tools\chrome-audio-capture.exe") --self-test
 if ($LASTEXITCODE -ne 0) {
-    throw "Chrome audio helper self-test failed with exit code $LASTEXITCODE."
+    throw "El autodiagnóstico del capturador de Chrome falló con el código $LASTEXITCODE."
 }
 $appSelfTest = Start-Process `
-    -FilePath (Join-Path $portableDir "Conference Recorder.exe") `
+    -FilePath (Join-Path $portableDir "Grabador de conferencias.exe") `
     -ArgumentList "--self-test" `
     -PassThru `
     -Wait `
     -WindowStyle Hidden
 if ($appSelfTest.ExitCode -ne 0) {
-    throw "Conference Recorder self-test failed with exit code $($appSelfTest.ExitCode)."
+    throw "El autodiagnóstico del Grabador de conferencias falló con el código $($appSelfTest.ExitCode)."
 }
 Remove-ProjectItem -Path $archivePath
 Compress-Archive -LiteralPath $portableDir -DestinationPath $archivePath -CompressionLevel Optimal
 if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
-    throw "The portable archive was not created."
+    throw "No se creó el archivo ZIP portable."
 }
 
-Write-Host "Portable application created: $archivePath"
-Write-Host "FFmpeg archive SHA-256: $ffmpegHash"
+Write-Host "Aplicación portable creada: $archivePath"
+Write-Host "SHA-256 del archivo de FFmpeg: $ffmpegHash"

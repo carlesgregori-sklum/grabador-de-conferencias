@@ -1,80 +1,91 @@
-# Ús de Conference Recorder
+# Uso del Grabador de conferencias
 
-## Inici ràpid
+## Inicio rápido
 
-1. Descomprimeix `Conference-Recorder-Portable.zip` en una carpeta local.
-2. Conserva junts `Conference Recorder.exe` i les carpetes `_runtime` i `tools`.
-3. Obri Chrome i prepara la conferència o el cas de Bizneo.
-4. Obri `Conference Recorder.exe` i comprova **Chrome detectat · àudio preparat**.
-5. Tria la font: pantalla principal, monitor concret o pestanya de Chrome.
-6. Activa **Incloure el meu micròfon** només si vols gravar la veu.
-7. Prem el botó blau. Si has triat monitor o pestanya, completa el selector de Chrome.
-8. En acabar, torna a l’aplicació i prem **Finalitzar i guardar**.
+1. Descomprime `Grabador-de-conferencias-Portable.zip` en una carpeta local.
+2. Conserva juntos `Grabador de conferencias.exe`, `_runtime` y `tools`.
+3. Abre Chrome y prepara la conferencia o el caso de Bizneo.
+4. Ejecuta `Grabador de conferencias.exe` y comprueba **Chrome listo**.
+5. Elige `Pantalla completa`, `Elegir pantalla` o `Pestaña de Chrome`.
+6. Activa **Incluir micrófono** únicamente si quieres grabar también tu voz.
+7. Revisa calidad y carpeta de destino.
+8. Pulsa la acción principal. Si elegiste monitor o pestaña, completa el selector nativo de Chrome.
+9. Cuando termines, vuelve a la aplicación y pulsa **Finalizar y guardar**.
 
-El resultat queda en `Vídeos\Conference Recorder` amb un nom com `Conference-2026-07-15-153010.mp4`.
+El destino inicial es `Vídeos\Grabador de conferencias`. Los archivos se llaman, por ejemplo, `Grabacion-2026-07-15-153010.mp4`. El botón **Cambiar** permite elegir otra carpeta antes de empezar.
 
-## Fonts de captura
+## Fuentes de captura
 
-| Mode | Vídeo | Àudio principal |
+| Modo | Vídeo | Audio principal |
 |---|---|---|
-| Tota la pantalla principal | Pantalla principal i cursor, sense selector | Tot l’àudio de l’arbre de processos de Chrome |
-| Una pantalla concreta | El monitor complet triat en el selector de Chrome | Tot l’àudio de l’arbre de processos de Chrome |
-| Una pestanya de Chrome | Només la pestanya triada | Només l’àudio compartit per eixa pestanya |
+| Pantalla completa | Pantalla principal y cursor, sin selector | Todo el audio del árbol de procesos de Chrome |
+| Elegir pantalla | Monitor completo elegido en Chrome | Todo el audio del árbol de procesos de Chrome |
+| Pestaña de Chrome | Solo la pestaña elegida | Solo el audio compartido por esa pestaña |
 
-En **Una pantalla concreta**, entra en la secció de pantalles completes del selector. Si tries una finestra o una pestanya, la pàgina ho explica i permet repetir.
+En **Elegir pantalla**, entra en la sección de pantallas completas del selector. Si eliges una ventana o una pestaña, la página explica el error y permite repetir.
 
-En **Una pestanya de Chrome**, entra en la secció de pestanyes i activa **Compartir també l’àudio**. Si falta eixa opció, l’aplicació permet tornar a seleccionar. No cal instal·lar cap extensió.
+En **Pestaña de Chrome**, entra en la sección de pestañas y activa **Compartir también el audio**. Si falta esa opción, la aplicación permite repetir la selección. No es necesaria ninguna extensión.
 
-Tancar o cancel·lar el selector torna l’aplicació a l’estat inicial amb un missatge clar. Parar la compartició des de Chrome finalitza la sessió de manera controlada i conserva els temporals si no es pot generar l’MP4.
+Cerrar o cancelar el selector devuelve la aplicación a su estado inicial con un mensaje claro. Dejar de compartir desde Chrome detiene la sesión de forma controlada y conserva los temporales si no puede generarse el MP4.
 
-## Micròfon opcional
+## Micrófono opcional
 
-El micròfon està desactivat per defecte. En activar-lo apareix un selector de dispositius. Es mescla amb la font principal sense substituir l’àudio de Chrome o de la pestanya.
+El micrófono está desactivado por defecto. La aplicación no enumera dispositivos hasta que el usuario activa la opción. El micrófono seleccionado se mezcla con el audio principal sin sustituirlo.
 
-Si no apareix:
+Si no aparece:
 
-1. Revisa **Configuració > Privacitat i seguretat > Micròfon**.
-2. Activa l’accés per a aplicacions d’escriptori.
-3. Connecta el dispositiu i prem **Actualitzar**.
+1. Revisa **Configuración > Privacidad y seguridad > Micrófono**.
+2. Activa el acceso para aplicaciones de escritorio.
+3. Conecta el dispositivo y pulsa **Actualizar**.
 
-## Qualitat
+## Calidad
 
-La configuració inicial és **Full HD 1080p · 30 FPS**, recomanada per a conferències i demostracions de Bizneo.
+La configuración inicial es **Full HD 1080p · 30 FPS**, adecuada para conferencias y demostraciones de Bizneo.
 
-| Opció | Ús |
+| Opción | Uso recomendado |
 |---|---|
-| HD 720p | Fitxer més lleuger i menor càrrega. |
-| Full HD 1080p | Text i detalls més nítids. |
-| 30 FPS | Recomanat per conferències i tutorials. |
-| 60 FPS | Moviment més fluid, amb més CPU i espai. |
+| HD 720p | Archivo más ligero y menor carga del equipo |
+| Full HD 1080p | Texto y detalles más nítidos |
+| 30 FPS | Conferencias, formación y tutoriales |
+| 60 FPS | Demostraciones con mucho movimiento; usa más CPU y espacio |
 
-## Privacitat
+## Estados visuales
 
-La gravació, els fragments temporals i la codificació són locals. La pàgina auxiliar es comunica únicament amb `127.0.0.1` mitjançant un identificador aleatori de sessió; no puja vídeos, àudio, URL, títols, diagnòstics ni telemetria. Quan el micròfon està desmarcat, no s’enumera ni s’obri.
+- **LISTO PARA GRABAR:** Chrome y las opciones necesarias están preparados.
+- **PREPARANDO CAPTURA:** se está iniciando FFmpeg o el selector nativo.
+- **GRABANDO:** el orbe y el cronómetro indican una sesión activa.
+- **GUARDANDO VÍDEO:** se están combinando vídeo y audio; no cierres la aplicación.
+- **VÍDEO GUARDADO:** el MP4 se ha creado correctamente.
 
-## Resolució de problemes
+Las órbitas, tarjetas, onda y acción principal cambian con el estado, pero no bloquean la captura ni añaden pasos.
 
-### Chrome no està obert
+## Privacidad
 
-Obri Chrome i prem **Tornar a comprovar**. Chrome ha d’estar obert abans de començar i continuar obert durant la gravació.
+La grabación, los fragmentos temporales y la codificación son locales. La página auxiliar se comunica únicamente con `127.0.0.1` mediante un identificador aleatorio de sesión. No envía vídeo, audio, URL, títulos, diagnósticos ni telemetría.
 
-### No apareix l’àudio de la pestanya
+## Resolución de problemas
 
-Cancel·la i torna a triar **Una pestanya de Chrome**. En el selector activa **Compartir també l’àudio**. El mode de monitor usa l’àudio general de Chrome i no mostra esta casella.
+### Chrome no está abierto
 
-### Windows no és compatible
+Abre Chrome y pulsa **Comprobar**. Chrome debe permanecer abierto durante la grabación.
 
-La captura d’àudio exclusiva per procés requereix Windows 10 build 20348 o posterior. Executa `Conference Recorder.exe --self-test` per veure el diagnòstic.
+### La pestaña no incluye audio
 
-### Queden fitxers temporals
+Cancela y vuelve a elegir **Pestaña de Chrome**. Activa **Compartir también el audio** en el selector.
 
-Els fitxers `.capture.mkv`, `.browser.webm`, `.chrome.wav`, `.microphone.wav` o `.part.mp4` indiquen una interrupció. Conserva’ls: poden permetre recuperar vídeo o àudio. Els temporals només s’eliminen després de crear correctament l’MP4.
+### Windows no es compatible
 
-### Windows mostra SmartScreen
+La captura de audio exclusiva por proceso requiere Windows 10 build 20348 o posterior. Ejecuta `Grabador de conferencias.exe --self-test` para obtener un diagnóstico.
 
-L’executable local no té signatura comercial. Usa **Més informació > Executar igualment** només si confies en el ZIP verificat d’este projecte.
+### Quedan archivos temporales
 
-## Verificació i manteniment
+Los archivos `.capture.mkv`, `.browser.webm`, `.chrome.wav`, `.microphone.wav` o `.part.mp4` indican una interrupción. Consérvalos: pueden permitir recuperar vídeo o audio. Solo se eliminan después de crear correctamente el MP4.
+
+### Windows muestra SmartScreen
+
+El ejecutable no tiene una firma comercial. Usa **Más información > Ejecutar de todas formas** únicamente si confías en el ZIP recibido.
+
+## Verificación y mantenimiento
 
 ```powershell
 python -m unittest discover -s tests -t . -v
@@ -82,4 +93,4 @@ powershell -ExecutionPolicy Bypass -File scripts/build-portable.ps1
 powershell -ExecutionPolicy Bypass -File scripts/build-portable.ps1 -ValidateOnly
 ```
 
-El build compila el helper natiu, incorpora FFmpeg i la pàgina del selector, crea el paquet PyInstaller `onedir`, executa els autodiagnòstics, valida l’estructura i genera el ZIP.
+El build compila el helper nativo, incorpora FFmpeg y el selector, crea un paquete PyInstaller `onedir`, ejecuta los autodiagnósticos, valida la estructura y genera el ZIP.

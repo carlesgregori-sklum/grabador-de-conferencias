@@ -88,7 +88,7 @@ class MainTests(unittest.TestCase):
 
     def test_resource_path_uses_executable_directory_when_frozen(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            executable = Path(directory) / "Conference Recorder.exe"
+            executable = Path(directory) / "Grabador de conferencias.exe"
             with (
                 patch.object(sys, "frozen", True, create=True),
                 patch.object(sys, "executable", str(executable)),

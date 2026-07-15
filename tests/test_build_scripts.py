@@ -38,6 +38,16 @@ class PortableBuildTests(unittest.TestCase):
         self.assertIn("[tool.setuptools.package-data]", pyproject)
         self.assertIn('bizneo_recorder = ["assets/*.html"]', pyproject)
 
+    def test_portable_artifact_names_are_spanish(self) -> None:
+        script = (PROJECT_ROOT / "scripts" / "build-portable.ps1").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('"Grabador de conferencias.exe"', script)
+        self.assertIn('"Grabador-de-conferencias-Portable.zip"', script)
+        self.assertIn('"LEEME.txt"', script)
+        self.assertNotIn("LLEGEIX-ME.txt", script)
+
 
 if __name__ == "__main__":
     unittest.main()

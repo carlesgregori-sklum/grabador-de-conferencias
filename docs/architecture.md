@@ -1,101 +1,121 @@
 # Arquitectura
 
-## Visió general
+## Visión general
 
-Conference Recorder és una aplicació Windows portable amb tres fonts de vídeo. Tkinter presenta la UI i coordina treball en segon pla. La pantalla principal usa FFmpeg `gdigrab`; un monitor o una pestanya s’obtenen amb `getDisplayMedia` i `MediaRecorder` des d’una pàgina local oberta per Chrome. El micròfon és opcional. Un helper C# usa WASAPI Process Loopback quan cal capturar l’àudio de tot l’arbre de Chrome.
+Grabador de conferencias 3.0 es una aplicación Windows portable con tres fuentes de vídeo. Tkinter coordina el flujo y `ui.py` dibuja la interfaz oscura y sus animaciones con `Canvas`. La captura de la pantalla principal usa FFmpeg `gdigrab`; un monitor o una pestaña se obtienen con `getDisplayMedia` y `MediaRecorder` desde una página local abierta por Chrome. Un helper C# usa WASAPI Process Loopback cuando debe capturarse el audio de todo el árbol de Chrome.
 
 ```text
-Conference Recorder
+Grabador de conferencias
 ├── README.md
 ├── pyproject.toml
 ├── docs/
-│   ├── architecture.md                 Este document
-│   ├── usage.md                        Ús, privacitat i problemes
-│   ├── portable-readme.txt             Guia inclosa en el ZIP
-│   ├── verification.md                 Resultats i hashes
-│   └── superpowers/                    Especificacions i plans
+│   ├── architecture.md                 Este documento
+│   ├── design/
+│   │   └── recorder-ui-concept.png     Referencia visual aprobada
+│   ├── usage.md                        Uso, privacidad y soporte
+│   ├── portable-readme.txt             LEEME incluido en el ZIP
+│   ├── verification.md                 Resultados y hashes
+│   └── superpowers/                    Especificaciones y planes históricos
 ├── native/chrome_audio_capture/
-│   └── ChromeAudioCapture.cs           WASAPI per arbre de processos
+│   └── ChromeAudioCapture.cs           WASAPI para árbol de procesos
 ├── scripts/
 │   ├── build-chrome-audio.ps1          Compila el helper C# x64
-│   ├── build-portable.ps1              PyInstaller, eines, assets i ZIP
+│   ├── build-portable.ps1              PyInstaller, herramientas y ZIP
 │   ├── launcher.py                     Entrada de PyInstaller
-│   ├── smoke-recording.py              Prova real de pantalla principal
-│   └── verify-recording.ps1            Comprova streams amb ffprobe
+│   ├── smoke-recording.py              Prueba real de pantalla principal
+│   └── verify-recording.ps1            Comprueba streams con ffprobe
 ├── src/bizneo_recorder/
-│   ├── assets/browser_capture.html     Selector, MediaRecorder i enviament local
-│   ├── app.py                          UI i coordinació asíncrona
-│   ├── browser_capture.py              Servidor loopback i protocol de fragments
-│   ├── chrome_audio.py                 Client i lifecycle del helper
-│   ├── ffmpeg.py                       Dispositius, captura i finalització per mode
-│   ├── main.py                         Entrada, recursos i --self-test
-│   ├── models.py                       Modes, configuració i rutes de sessió
-│   ├── processes.py                    Arrel i executable de Chrome
-│   └── recorder.py                     Estat i propietat de tots els recursos
-└── tests/                               76 proves Python/helper/UI/build
+│   ├── assets/browser_capture.html     Selector, MediaRecorder y envío local
+│   ├── app.py                          Estado de producto y coordinación UI
+│   ├── ui.py                           Paleta y widgets Canvas animados
+│   ├── browser_capture.py              Servidor loopback y fragmentos
+│   ├── chrome_audio.py                 Cliente y ciclo de vida del helper
+│   ├── ffmpeg.py                       Captura y finalización por modo
+│   ├── main.py                         Entrada, recursos y --self-test
+│   ├── models.py                       Modos, configuración y rutas
+│   ├── processes.py                    Árbol y ejecutable de Chrome
+│   └── recorder.py                     Estado y propiedad de recursos
+└── tests/                               86 pruebas Python, helper, UI y build
 ```
 
-`work/` conté compilacions i mostres temporals. `outputs/` conté el directori portable i el ZIP. Les dos carpetes estan ignorades per Git.
+`work/` contiene compilaciones y muestras temporales. `outputs/` contiene el directorio portable y el ZIP. Ambas carpetas están ignoradas por Git y se regeneran.
 
-## Fluxos de gravació
+## Flujo de interfaz
 
 ```text
-Pantalla principal
-  FFmpeg gdigrab ───────────────► .capture.mkv (H.264 + mic opcional)
-  WASAPI arbre de Chrome ───────► .chrome.wav
-
-Monitor seleccionat
-  Chrome getDisplayMedia ───────► .browser.webm (vídeo)
-  WASAPI arbre de Chrome ───────► .chrome.wav
-  FFmpeg DirectShow opcional ───► .microphone.wav
-
-Pestanya seleccionada
-  Chrome getDisplayMedia ───────► .browser.webm (vídeo + àudio de la pestanya)
-  FFmpeg DirectShow opcional ───► .microphone.wav
-
-Totes les variants
-  FFmpeg finalitza ─► .part.mp4 ─► promoció atòmica ─► .mp4
+Evento del usuario
+      │
+      ▼
+app.py ── actualiza estado ──► ui.py / widgets Canvas
+  │                              │
+  ├── worker de inicio           ├── órbitas y pulso con root.after
+  ├── worker de micrófonos       ├── selección y foco de tarjetas
+  └── worker de finalización     └── CTA, conmutador y onda ambiental
 ```
 
-La pantalla principal codifica H.264 durant la captura i copia el vídeo en la passada final. Les fonts WebM de Chrome es reescalen amb proporció conservada, s’encaixen en 720p o 1080p i es recodifiquen a H.264. L’àudio final és AAC estèreo a 44,1 kHz.
+Los widgets animados no poseen recursos de captura y no ejecutan trabajo bloqueante. Cada bucle usa `after`, conserva un único callback y lo cancela al destruirse. Las tarjetas ofrecen foco, teclado, marca y borde; la selección no depende solo del color.
+
+`app.py` mantiene los estados de producto `LISTO`, preparación, grabación, guardado y error. Durante una sesión bloquea fuente, micrófono, calidad y carpeta sin bloquear el hilo principal.
+
+## Flujos de grabación
+
+```text
+Pantalla completa
+  FFmpeg gdigrab ───────────────► .capture.mkv (H.264 + micrófono opcional)
+  WASAPI árbol de Chrome ───────► .chrome.wav
+
+Monitor elegido
+  Chrome getDisplayMedia ───────► .browser.webm (vídeo)
+  WASAPI árbol de Chrome ───────► .chrome.wav
+  FFmpeg DirectShow opcional ───► .microphone.wav
+
+Pestaña elegida
+  Chrome getDisplayMedia ───────► .browser.webm (vídeo + audio de la pestaña)
+  FFmpeg DirectShow opcional ───► .microphone.wav
+
+Todos los modos
+  FFmpeg finaliza ──► .part.mp4 ──► promoción atómica ──► .mp4
+```
+
+La pantalla principal codifica H.264 durante la captura y copia el vídeo en la pasada final. Las fuentes WebM se reescalan conservando proporción, se encajan en 720p o 1080p y se recodifican a H.264. El audio final es AAC estéreo a 44,1 kHz.
 
 ## Selector local de Chrome
 
-`main.py` carrega `assets/browser_capture.html` com a recurs del paquet i crea un `BrowserCaptureBridge` per sessió. El pont:
+`main.py` carga `assets/browser_capture.html` como recurso del paquete y crea un `BrowserCaptureBridge` por sesión. El puente:
 
-- escolta només en `127.0.0.1` sobre un port efímer;
-- genera un token aleatori de 32 bytes per protegir les rutes;
-- obri Chrome amb `--app=http://127.0.0.1:port/capture/token`;
-- valida `displaySurface=monitor` o `displaySurface=browser` segons el mode;
-- exigeix pista d’àudio per a pestanyes;
-- rep fragments WebM numerats, ordenats i amb reintents idempotents;
-- limita cada fragment a 16 MiB i no registra URL, títol ni contingut;
-- notifica cancel·lació si es tanca la finestra auxiliar.
+- escucha solo en `127.0.0.1` sobre un puerto efímero;
+- genera un token aleatorio de 32 bytes;
+- abre Chrome con `--app=http://127.0.0.1:puerto/capture/token`;
+- valida `displaySurface=monitor` o `displaySurface=browser`;
+- exige una pista de audio para pestañas;
+- recibe fragmentos WebM numerados, ordenados e idempotentes;
+- limita cada fragmento a 16 MiB y no registra URL, título ni contenido;
+- notifica la cancelación si se cierra la ventana auxiliar.
 
-El navegador continua sent qui mostra i controla el selector natiu. No hi ha extensió ni servidor extern.
+La página usa la misma paleta coral/violeta, animaciones CSS y `prefers-reduced-motion`. Chrome continúa controlando el selector nativo. No hay extensiones ni servidores externos.
 
-## Responsabilitats
+## Responsabilidades
 
-- `processes.py` enumera processos amb Tool Help, tria l’arbre de Chrome més gran i obté la ruta executable amb `QueryFullProcessImageNameW`.
-- `ChromeAudioCapture.cs` captura PCM 44,1 kHz estèreo mitjançant `VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK`.
-- `chrome_audio.py` espera `READY`, controla parada i valida la capçalera WAV.
-- `browser_capture.py` manté l’estat del protocol HTTP, les condicions d’inici/parada i el fitxer WebM.
-- `ffmpeg.py` construeix ordres deterministes per cada mode i mescla el micròfon quan està actiu.
-- `recorder.py` és l’únic propietari dels processos, el pont i els temporals; només elimina intermedis després d’una finalització correcta.
-- `app.py` manté la UI responsiva amb workers, no enumera micròfons fins que l’usuari ho demana i bloqueja controls durant la sessió.
+- `ui.py`: color, dibujo y widgets animados sin lógica de captura.
+- `app.py`: experiencia, textos, selección de carpeta y coordinación asíncrona.
+- `processes.py`: procesos de Chrome y ruta del ejecutable.
+- `ChromeAudioCapture.cs`: PCM 44,1 kHz estéreo mediante `VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK`.
+- `chrome_audio.py`: espera `READY`, parada y validación WAV.
+- `browser_capture.py`: protocolo HTTP y archivo WebM.
+- `ffmpeg.py`: órdenes deterministas y mezcla de audio.
+- `recorder.py`: propietario único de procesos, puente y temporales.
 
-## Construcció
+## Construcción y distribución
 
-`scripts/build-portable.ps1` compila el helper x64, descarrega el build Essentials de FFmpeg, crea un paquet PyInstaller `onedir`, incorpora `browser_capture.html` en `_runtime/bizneo_recorder/assets`, copia les eines a `tools/`, executa autodiagnòstics, valida el layout i genera `outputs/Conference-Recorder-Portable.zip`.
+`scripts/build-portable.ps1` compila el helper x64, incorpora el build Essentials de FFmpeg, crea un paquete PyInstaller `onedir`, ejecuta autodiagnósticos, valida el layout y genera `outputs/Grabador-de-conferencias-Portable.zip`.
 
-El mode `onedir` evita l’extracció temporal de Tcl/Tk. L’executable i les carpetes `_runtime/` i `tools/` formen una unitat portable i s’han de mantindre juntes. Els artefactes d’`outputs/` es reconstrueixen; no s’editen manualment.
+El modo `onedir` evita la extracción temporal de Tcl/Tk. `Grabador de conferencias.exe`, `_runtime/` y `tools/` forman una unidad portable y deben mantenerse juntos. `LEEME.txt` explica el uso a RRHH.
 
-## Compatibilitat i limitacions
+## Compatibilidad y limitaciones
 
 - Windows 10 build 20348 o posterior.
-- Chrome ha d’estar obert abans de començar i mantindre’s obert.
-- El selector permet pantalla completa o pestanya, no una finestra individual.
-- En pantalla principal o monitor, diverses pestanyes de Chrome audibles poden mesclar-se.
-- En mode pestanya només entra l’àudio de la pestanya si s’activa **Compartir també l’àudio**.
-- No captura webcam, anotacions ni altres navegadors.
-- L’executable no té signatura comercial i pot activar SmartScreen.
+- Chrome debe estar abierto antes y durante la captura.
+- No existe captura de una ventana individual, webcam, anotaciones ni edición.
+- Pantalla y monitor mezclan todas las pestañas audibles del árbol de Chrome.
+- La pestaña necesita **Compartir también el audio**.
+- El ejecutable no tiene una firma comercial y puede activar SmartScreen.
