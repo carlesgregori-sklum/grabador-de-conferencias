@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from bizneo_recorder.chrome_audio import ChromeAudioError
-from bizneo_recorder.models import RecordingConfig
+from bizneo_recorder.models import CaptureMode, Microphone, RecordingConfig
 from bizneo_recorder.recorder import Recorder, RecorderError, RecorderState
 
 
@@ -48,6 +48,13 @@ class FakeFFmpegClient:
 
     def build_capture_command(self, config: RecordingConfig, capture_path: Path) -> list[str]:
         return ["ffmpeg.exe", "-i", "desktop", str(capture_path)]
+
+    def build_microphone_command(
+        self,
+        config: RecordingConfig,
+        microphone_path: Path,
+    ) -> list[str]:
+        return ["ffmpeg.exe", "-i", "microphone", str(microphone_path)]
 
     def run_finalize(self, config: RecordingConfig, paths: object) -> None:
         self.events.append("finalized")
@@ -96,8 +103,54 @@ class ProcessFactory:
         if self.fail:
             raise OSError("screen process failed")
         self.command = command
-        self.events.append("screen-started")
+        event = "microphone-started" if "microphone" in command else "screen-started"
+        self.events.append(event)
         return self.process
+
+
+class FakeBrowserCapture:
+    def __init__(self, events: list[str], output_path: Path, error: str = "") -> None:
+        self.events = events
+        self.output_path = output_path
+        self.error = error
+        self.closed = False
+
+    def start(self, chrome_executable: Path) -> None:
+        self.events.append(f"browser-opened:{chrome_executable.name}")
+
+    def wait_ready(self) -> None:
+        self.events.append("browser-ready")
+        if self.error:
+            raise RuntimeError(self.error)
+
+    def begin(self) -> None:
+        self.events.append("browser-begun")
+
+    def stop(self, timeout: float = 15.0) -> None:
+        self.events.append("browser-stopped")
+        self.output_path.write_bytes(b"webm")
+
+    def poll(self) -> str | None:
+        return self.error or None
+
+    def close(self) -> None:
+        self.events.append("browser-closed")
+        self.closed = True
+
+
+class FakeBrowserFactory:
+    def __init__(self, events: list[str], error: str = "") -> None:
+        self.events = events
+        self.error = error
+        self.bridge: FakeBrowserCapture | None = None
+
+    def __call__(self, config: RecordingConfig, paths: object) -> FakeBrowserCapture:
+        self.bridge = FakeBrowserCapture(
+            self.events,
+            paths.browser_capture,
+            self.error,
+        )
+        return self.bridge
 
 
 class RecorderTests(unittest.TestCase):
@@ -120,10 +173,12 @@ class RecorderTests(unittest.TestCase):
     ) -> tuple[Recorder, FakeScreenProcess, FakeChromeClient]:
         screen = FakeScreenProcess(self.events, screen_returncode)
         chrome = FakeChromeClient(self.events, chrome_start_fails)
+        browser = FakeBrowserFactory(self.events)
         recorder = Recorder(
             FakeFFmpegClient(self.events, finalize_fails),
             chrome,
             ProcessFactory(screen, self.events, screen_start_fails),
+            browser_capture_factory=browser,
         )
         return recorder, screen, chrome
 
@@ -180,6 +235,77 @@ class RecorderTests(unittest.TestCase):
 
         self.assertTrue(recorder.paths.capture.exists())
         self.assertTrue(recorder.paths.chrome_audio.exists())
+        self.assertEqual(recorder.state, RecorderState.IDLE)
+
+    def test_selected_monitor_uses_picker_video_and_chrome_process_audio(self) -> None:
+        recorder, _, chrome = self.make_recorder()
+        config = RecordingConfig(
+            self.output_dir,
+            chrome_process_id=321,
+            capture_mode=CaptureMode.SELECTED_MONITOR,
+        )
+
+        final_path = recorder.start(config, Path("chrome.exe"))
+        result = recorder.stop()
+
+        self.assertEqual(result, final_path)
+        self.assertTrue(chrome.handle and chrome.handle.stopped)
+        self.assertEqual(
+            self.events,
+            [
+                "browser-opened:chrome.exe",
+                "browser-ready",
+                "chrome-ready",
+                "browser-begun",
+                "browser-stopped",
+                "chrome-stopped",
+                "finalized",
+                "browser-closed",
+            ],
+        )
+
+    def test_chrome_tab_uses_embedded_audio_without_chrome_helper(self) -> None:
+        recorder, _, chrome = self.make_recorder()
+        config = RecordingConfig(
+            self.output_dir,
+            chrome_process_id=321,
+            capture_mode=CaptureMode.CHROME_TAB,
+        )
+
+        recorder.start(config, Path("chrome.exe"))
+        recorder.stop()
+
+        self.assertIsNone(chrome.handle)
+        self.assertNotIn("chrome-ready", self.events)
+        self.assertEqual(self.events.count("browser-stopped"), 1)
+
+    def test_browser_mode_records_optional_microphone_separately(self) -> None:
+        recorder, screen, _ = self.make_recorder()
+        config = RecordingConfig(
+            self.output_dir,
+            chrome_process_id=321,
+            microphone=Microphone("USB Microphone"),
+            capture_mode=CaptureMode.CHROME_TAB,
+        )
+
+        recorder.start(config, Path("chrome.exe"))
+        recorder.stop()
+
+        self.assertIn("microphone-started", self.events)
+        self.assertEqual(screen.stdin.getvalue(), "q\n")
+        self.assertIn("screen-stopped", self.events)
+
+    def test_browser_mode_requires_chrome_executable(self) -> None:
+        recorder, _, _ = self.make_recorder()
+        config = RecordingConfig(
+            self.output_dir,
+            chrome_process_id=321,
+            capture_mode=CaptureMode.CHROME_TAB,
+        )
+
+        with self.assertRaisesRegex(RecorderError, "Chrome"):
+            recorder.start(config)
+
         self.assertEqual(recorder.state, RecorderState.IDLE)
 
 
