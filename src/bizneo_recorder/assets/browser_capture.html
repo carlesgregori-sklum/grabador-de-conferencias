@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seleccionar font · Conference Recorder</title>
+  <style>
+    :root { color-scheme: light; font-family: "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #f4f6fa;
+      color: #172033;
+    }
+    main {
+      width: min(460px, calc(100vw - 32px));
+      padding: 32px;
+      border: 1px solid #d0d5dd;
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 16px 40px rgb(23 32 51 / 10%);
+    }
+    .mark {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 18px;
+      border-radius: 10px;
+      background: #e8edff;
+      color: #3155d9;
+      font-size: 21px;
+    }
+    h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.25; }
+    p { margin: 0 0 22px; color: #667085; line-height: 1.5; }
+    button {
+      width: 100%;
+      min-height: 48px;
+      border: 0;
+      border-radius: 8px;
+      background: #3155d9;
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #2444b8; }
+    button:focus-visible { outline: 3px solid #9db0ff; outline-offset: 2px; }
+    button:disabled { cursor: wait; opacity: .65; }
+    #status {
+      min-height: 48px;
+      margin: 18px 0 0;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #f7f8fa;
+      color: #475467;
+      font-size: 14px;
+    }
+    #status.error { background: #fff1f0; color: #b42318; }
+    #status.success { background: #ecfdf3; color: #067647; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true">◉</div>
+    <h1 id="title">Seleccionar font</h1>
+    <p id="instructions"></p>
+    <button id="select" type="button">Seleccionar</button>
+    <div id="status" role="status" aria-live="polite">Preparat per seleccionar.</div>
+  </main>
+  <script>
+    "use strict";
+
+    const config = __CAPTURE_CONFIG__;
+    const apiBase = `/api/${config.token}`;
+    const modeIsTab = config.mode === "tab";
+    const title = document.querySelector("#title");
+    const instructions = document.querySelector("#instructions");
+    const selectButton = document.querySelector("#select");
+    const statusBox = document.querySelector("#status");
+
+    let stream = null;
+    let recorder = null;
+    let audioContext = null;
+    let sequence = 0;
+    let uploadChain = Promise.resolve();
+    let stopping = false;
+
+    class RetryableSelectionError extends Error {}
+
+    title.textContent = modeIsTab ? "Seleccionar pestanya" : "Seleccionar pantalla";
+    selectButton.textContent = modeIsTab ? "Triar pestanya en Chrome" : "Triar pantalla en Chrome";
+    instructions.textContent = modeIsTab
+      ? "En el selector, entra en Pestanya de Chrome i activa Compartir també l’àudio."
+      : "En el selector, entra en Pantalla completa i tria el monitor que vols gravar.";
+
+    function setStatus(message, kind = "") {
+      statusBox.textContent = message;
+      statusBox.className = kind;
+    }
+
+    function stopTracks() {
+      if (stream) {
+        for (const track of stream.getTracks()) track.stop();
+      }
+      if (audioContext) audioContext.close().catch(() => {});
+    }
+
+    async function responseError(response) {
+      try {
+        const payload = await response.json();
+        return payload.error || `Error local ${response.status}`;
+      } catch (_) {
+        return `Error local ${response.status}`;
+      }
+    }
+
+    async function postJson(action, payload = {}) {
+      const response = await fetch(`${apiBase}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+    }
+
+    async function postChunk(blob, currentSequence) {
+      const response = await fetch(`${apiBase}/chunk/${currentSequence}`, {
+        method: "POST",
+        headers: { "Content-Type": blob.type || "application/octet-stream" },
+        body: blob,
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+    }
+
+    async function reportError(error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(message, "error");
+      try { await postJson("error", { message }); } catch (_) {}
+    }
+
+    function chooseMimeType() {
+      const candidates = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+      ];
+      return candidates.find((value) => MediaRecorder.isTypeSupported(value)) || "";
+    }
+
+    function preserveTabPlayback(audioTrack) {
+      const settings = audioTrack.getSettings ? audioTrack.getSettings() : {};
+      if (!settings.suppressLocalAudioPlayback) return;
+      audioContext = new AudioContext();
+      const audioStream = new MediaStream([audioTrack]);
+      audioContext.createMediaStreamSource(audioStream).connect(audioContext.destination);
+    }
+
+    async function beginRecording() {
+      if (!stream || recorder) return;
+      const mimeType = chooseMimeType();
+      recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+      recorder.addEventListener("dataavailable", (event) => {
+        if (!event.data || event.data.size === 0) return;
+        const currentSequence = sequence++;
+        uploadChain = uploadChain.then(() => postChunk(event.data, currentSequence));
+      });
+
+      recorder.addEventListener("stop", async () => {
+        try {
+          await uploadChain;
+          await postJson("complete");
+          setStatus("Gravació enviada. Ja pots tancar esta finestra.", "success");
+        } catch (error) {
+          await reportError(error);
+        } finally {
+          stopTracks();
+          window.setTimeout(() => window.close(), 900);
+        }
+      });
+
+      recorder.start(1000);
+      await postJson("started");
+      setStatus("Gravant. Torna a Conference Recorder per finalitzar.", "success");
+    }
+
+    function stopRecording() {
+      if (stopping) return;
+      stopping = true;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.requestData();
+        recorder.stop();
+      } else {
+        stopTracks();
+      }
+    }
+
+    async function pollCommands() {
+      while (!stopping) {
+        try {
+          const response = await fetch(`${apiBase}/command`, { cache: "no-store" });
+          if (!response.ok) throw new Error(await responseError(response));
+          const payload = await response.json();
+          if (payload.command === "start") await beginRecording();
+          if (payload.command === "stop") {
+            stopRecording();
+            return;
+          }
+          if (payload.command === "abort") {
+            stopping = true;
+            stopTracks();
+            setStatus("Selecció tancada. Ja pots tancar esta finestra.");
+            return;
+          }
+        } catch (error) {
+          await reportError(error);
+          stopRecording();
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+    }
+
+    async function selectSource() {
+      selectButton.disabled = true;
+      setStatus("Esperant la selecció de Chrome…");
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            frameRate: { ideal: config.fps },
+            displaySurface: modeIsTab ? "browser" : "monitor",
+          },
+          audio: modeIsTab ? { suppressLocalAudioPlayback: false } : false,
+          preferCurrentTab: false,
+          selfBrowserSurface: "exclude",
+          surfaceSwitching: "exclude",
+          systemAudio: "exclude",
+        });
+
+        const videoTrack = stream.getVideoTracks()[0];
+        const displaySurface = videoTrack?.getSettings?.().displaySurface || "";
+        const audioTracks = stream.getAudioTracks();
+        const expectedSurface = modeIsTab ? "browser" : "monitor";
+
+        if (displaySurface !== expectedSurface) {
+          stopTracks();
+          stream = null;
+          throw new RetryableSelectionError(modeIsTab
+            ? "Has de triar una pestanya de Chrome, no una pantalla o finestra."
+            : "Has de triar una pantalla completa, no una finestra o pestanya.");
+        }
+        if (modeIsTab && audioTracks.length === 0) {
+          stopTracks();
+          stream = null;
+          throw new RetryableSelectionError("Activa «Compartir també l’àudio» i torna a seleccionar la pestanya.");
+        }
+
+        const mimeType = chooseMimeType();
+        await postJson("ready", {
+          display_surface: displaySurface,
+          has_audio: audioTracks.length > 0,
+          mime_type: mimeType,
+        });
+        if (modeIsTab) preserveTabPlayback(audioTracks[0]);
+        videoTrack.addEventListener("ended", async () => {
+          if (stopping) return;
+          await reportError(new Error("Chrome ha deixat de compartir la font."));
+          stopRecording();
+        }, { once: true });
+        selectButton.hidden = true;
+        setStatus("Font preparada. Conference Recorder començarà en un moment.");
+        await pollCommands();
+      } catch (error) {
+        if (stream) stopTracks();
+        stream = null;
+        selectButton.disabled = false;
+        if (error instanceof RetryableSelectionError) {
+          setStatus(error.message, "error");
+        } else if (error instanceof DOMException && error.name === "NotAllowedError") {
+          await reportError(new Error("Selecció cancel·lada."));
+        } else {
+          await reportError(error);
+        }
+      }
+    }
+
+    selectButton.addEventListener("click", selectSource);
+  </script>
+</body>
+</html>
