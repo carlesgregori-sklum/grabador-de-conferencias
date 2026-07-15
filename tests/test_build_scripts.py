@@ -26,6 +26,18 @@ class PortableBuildTests(unittest.TestCase):
         self.assertIn("-Wait", script)
         self.assertIn("$appSelfTest.ExitCode", script)
 
+    def test_packages_and_validates_browser_capture_asset(self) -> None:
+        script = (PROJECT_ROOT / "scripts" / "build-portable.ps1").read_text(
+            encoding="utf-8"
+        )
+        pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+        self.assertIn("--add-data", script)
+        self.assertIn("bizneo_recorder\\assets", script)
+        self.assertIn("browser_capture.html", script)
+        self.assertIn("[tool.setuptools.package-data]", pyproject)
+        self.assertIn('bizneo_recorder = ["assets/*.html"]', pyproject)
+
 
 if __name__ == "__main__":
     unittest.main()

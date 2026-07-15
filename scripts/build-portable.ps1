@@ -42,6 +42,7 @@ function Assert-PortableLayout {
 
     $required = @(
         (Join-Path $portableDir "Conference Recorder.exe"),
+        (Join-Path $portableDir "_runtime\bizneo_recorder\assets\browser_capture.html"),
         (Join-Path $portableDir "tools\ffmpeg.exe"),
         (Join-Path $portableDir "tools\chrome-audio-capture.exe"),
         (Join-Path $portableDir "FFMPEG-LICENSE.txt"),
@@ -140,6 +141,7 @@ Write-Host "Building the portable Windows executable..."
     --noupx `
     --name "Conference Recorder" `
     --paths (Join-Path $projectRoot "src") `
+    --add-data "$projectRoot\src\bizneo_recorder\assets;bizneo_recorder\assets" `
     --distpath $distDir `
     --workpath $buildDir `
     --specpath $specDir `

@@ -1,4 +1,4 @@
-"""Portable full-screen and Chrome process-audio recorder for Windows."""
+"""Portable selectable-screen and Chrome-tab recorder for Windows."""
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
