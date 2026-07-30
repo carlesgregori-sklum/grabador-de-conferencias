@@ -4,6 +4,12 @@ Aplicación portable para Windows que graba una de tres fuentes: **la pantalla p
 
 La versión 3.0 incorpora una interfaz oscura y animada, completamente en castellano, pensada para que un equipo de RRHH pueda utilizarla sin formación técnica. No necesita Python, FFmpeg instalado, permisos de administrador ni extensiones de Chrome.
 
+## Descargar para Windows
+
+**[Descargar Grabador de conferencias 3.0.1](https://github.com/carlesgregori-sklum/grabador-de-conferencias/releases/download/v3.0.1/Grabador-de-conferencias-Portable.zip)**
+
+Descomprime el ZIP completo y ejecuta `Grabador de conferencias.exe`. No descargues ni muevas solo el `.exe`: necesita las carpetas `_runtime` y `tools` incluidas en el paquete.
+
 ## Entrega a RRHH
 
 1. Comparte `Grabador-de-conferencias-Portable.zip`.
