@@ -58,6 +58,11 @@ La captura y la codificación se realizan en local. El selector auxiliar se comu
 
 La aplicación no gestiona consentimiento ni políticas de retención. Antes de grabar, el equipo usuario debe confirmar que la captura está autorizada y aplicar el procedimiento interno correspondiente al almacenamiento, acceso y eliminación del MP4.
 
+## Proyecto y procedimiento
+
+- [Ficha de proyecto en Notion](https://app.notion.com/p/3cec250252e3811f8e56ce0f012cdfea?pvs=204)
+- [Procedimiento de grabación de reuniones y formación](https://app.notion.com/p/3cec250252e38120b709d11adba34e12?pvs=204)
+
 ## Ayuda y documentación
 
 La guía completa de uso está en [`docs/usage.md`](docs/usage.md). La [documentación técnica](docs/README.md) enlaza arquitectura, operación, mantenimiento y verificación.
